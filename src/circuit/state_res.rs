@@ -53,9 +53,26 @@ impl StateResChip {
         mut layouter: impl Layouter<Fr>,
         conflicting_states: Vec<AssignedCell<Fr, Fr>>,
     ) -> Result<AssignedCell<Fr, Fr>, Error> {
+        // In Matrix State Res v2, we sort and pick the "best" event.
+        // For this demo, let's simulate picking the one with the smallest field element value.
         layouter.assign_region(
             || "StateResV2 Tie Breaker",
-            |_region| Ok(conflicting_states[0].clone()),
+            |mut region| {
+                // If we have two parents, we pick the "smaller" one (lexicographical tie-break)
+                let selected_val = if conflicting_states.len() >= 2 {
+                    let val0 = conflicting_states[0].value();
+                    let val1 = conflicting_states[1].value();
+
+                    // We use Value::zip to compare values inside the Value container
+                    val0.zip(val1)
+                        .map(|(v0, v1)| if v0 < v1 { *v0 } else { *v1 })
+                } else {
+                    conflicting_states[0].value().copied()
+                };
+
+                // Assign the winner to the output column
+                region.assign_advice(|| "winner", self.config.sorted_output, 0, || selected_val)
+            },
         )
     }
 }

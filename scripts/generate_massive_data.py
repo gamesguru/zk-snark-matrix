@@ -4,7 +4,7 @@ import random
 import sys
 import time
 
-NUM_EVENTS = 50000
+NUM_EVENTS = 1000000
 
 
 def sha256_hash(data_str):

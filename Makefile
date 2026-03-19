@@ -7,8 +7,14 @@ PYTHON = python3
 # Load environment variables from .env file if it exists
 ifneq (,$(wildcard ./.env))
     include .env
-    export
 endif
+
+# Clean quotes from variables to avoid "makefile things"
+MATRIX_TOKEN := $(subst ",,$(subst ',,$(MATRIX_TOKEN)))
+MATRIX_HOMESERVER := $(subst ",,$(subst ',,$(MATRIX_HOMESERVER)))
+MATRIX_ROOM_ID := $(subst ",,$(subst ',,$(MATRIX_ROOM_ID)))
+
+export
 
 STYLE_CYAN := \033[36m
 STYLE_RESET := \033[0m
@@ -76,4 +82,5 @@ clean: ##H Clean the Rust build artifacts
 # Messes up vim/sublime syntax highlighting, so it's at the end!
 .PHONY: help
 help: ##H Show this help, list available targets
-	@grep -E '^[a-zA-Z0-9_\/-]+:.*?##H .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?##H "}; {printf "$(STYLE_CYAN)%-20s$(STYLE_RESET) %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z0-9_\/-]+:.*?##H .*$$' $(MAKEFILE_LIST) \
+                | awk 'BEGIN {FS = ":.*?##H "}; {printf "$(STYLE_CYAN)%-20s$(STYLE_RESET) %s\n", $$1, $$2}'

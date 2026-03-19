@@ -16,6 +16,9 @@
 .env
 /.tmp/
 
+# force add these if you really want some
+res/*.json
+
 # macOS/backup files
 .~*
 ._*

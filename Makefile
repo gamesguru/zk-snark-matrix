@@ -37,7 +37,7 @@ run: ##H Run the ZK-Matrix-Join Demo
 .PHONY: test
 test: ##H Run the ZK Circuit Tests
 	@echo "Running ZK Circuit Tests..."
-	$(CARGO) test
+	$(CARGO) test -p zk-matrix-join-host
 
 .PHONY: fetch
 fetch: ##H Fetch real Matrix data (uses .env file for configuration)

@@ -101,9 +101,8 @@ mod tests {
 
         // Assert true (simulation)
         // let (mut pv, _) = client.execute(ELF, stdin).run().unwrap();
-        // let output = pv.read::<DAGMergeOutput>();
         // assert_eq!(output.resolved_state_hash, expected_hash);
-        assert!(true);
+        // The mock execution succeeds without panicking.
     }
 
     #[test]
@@ -124,7 +123,7 @@ mod tests {
         };
 
         // Here we run the actual application logic offline to show the expected assertion error.
-        let mut all_conflicts = input.conflicting_states.concat();
+        let all_conflicts = input.conflicting_states.concat();
         for event in all_conflicts {
             if event.power_level < 0 {
                 panic!("Invalid Power Level detected in Auth Chain! ZK Proof Generation Failed.");

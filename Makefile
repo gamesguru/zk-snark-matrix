@@ -68,6 +68,15 @@ fetch: ##H Fetch real Matrix data (uses .env file for configuration)
 	@echo "Fetching real Matrix state data from $$MATRIX_HOMESERVER..."
 	$(PYTHON) scripts/fetch_matrix_state.py
 
+.PHONY: fetch-real-test-room
+fetch-real-test-room: ##H Fetch a public room, i.e., massive #matrix:matrix.org
+	@if [ -z "$$MATRIX_TOKEN" ]; then \
+		echo "Error: MATRIX_TOKEN is not set."; \
+		exit 1; \
+	fi
+	@echo "Overriding environment to forcefully fetch #matrix:matrix.org (The M-Org Beast)..."
+	MATRIX_ROOM_ID="!OGEhHVWSdvArJbQdhm:matrix.org" $(PYTHON) scripts/fetch_matrix_state.py
+
 .PHONY: fixtures
 fixtures: ##H Download Ruma state resolution test fixtures
 	@echo "Downloading Ruma State Res test fixtures..."

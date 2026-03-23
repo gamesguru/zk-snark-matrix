@@ -34,11 +34,14 @@ fn main() {
     // Read the true downloaded Matrix State DAG!
     let state_file_path = "res/real_matrix_state.json";
     let fallback_path = "res/massive_matrix_state.json";
+    let ruma_path = "res/ruma_bootstrap_events.json";
 
     let path = if std::path::Path::new(state_file_path).exists() {
         state_file_path
-    } else {
+    } else if std::path::Path::new(fallback_path).exists() {
         fallback_path
+    } else {
+        ruma_path
     };
 
     println!("> Loading raw Matrix State DAG from {}...", path);

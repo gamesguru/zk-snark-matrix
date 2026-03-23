@@ -31,18 +31,49 @@ fn main() {
 
     // The Host does the heavy lifting: resolving the state according to Kahn's topological sort.
     // Here we simulate the result of `ruma_state_res::resolve` mathematically sorting the events.
-    let mut sorted_events = vec![
-        GuestStateEvent {
-            event_id_hash: [1u8; 32],
-            sender_pubkey: [0u8; 32],
-            power_level: 50,
-        },
-        GuestStateEvent {
-            event_id_hash: [2u8; 32], // Valid Hint: 1 < 2
-            sender_pubkey: [0u8; 32],
-            power_level: 100,
-        },
-    ];
+    // Read the true downloaded Matrix State DAG!
+    let state_file_path = "res/real_matrix_state.json";
+    let fallback_path = "res/massive_matrix_state.json";
+
+    let path = if std::path::Path::new(state_file_path).exists() {
+        state_file_path
+    } else {
+        fallback_path
+    };
+
+    println!("> Loading raw Matrix State DAG from {}...", path);
+    let file_content = std::fs::read_to_string(path)
+        .expect("Failed to read JSON state file (try running the python fetcher!)");
+    let raw_events: Vec<serde_json::Value> = serde_json::from_str(&file_content).unwrap();
+
+    let mut sorted_events: Vec<GuestStateEvent> = raw_events
+        .into_iter()
+        .map(|ev| {
+            use sha2::{Digest, Sha256};
+            let event_id = ev["event_id"].as_str().unwrap_or("").as_bytes();
+            let sender = ev["sender"].as_str().unwrap_or("").as_bytes();
+
+            let mut id_hasher = Sha256::new();
+            id_hasher.update(event_id);
+            let event_id_hash: [u8; 32] = id_hasher.finalize().into();
+
+            let mut sender_hasher = Sha256::new();
+            sender_hasher.update(sender);
+            let sender_pubkey: [u8; 32] = sender_hasher.finalize().into();
+
+            // Simulate parsing power_levels integer
+            GuestStateEvent {
+                event_id_hash,
+                sender_pubkey,
+                power_level: 50,
+            }
+        })
+        .collect();
+
+    println!(
+        "> Successfully mapped exactly {} Matrix Events into structural ZK hints!",
+        sorted_events.len()
+    );
 
     // Simulating Matrix topological sorting on the host
     sorted_events.sort_by_key(|a| a.event_id_hash);

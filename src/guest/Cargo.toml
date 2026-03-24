@@ -6,6 +6,7 @@ edition = "2021"
 [[bin]]
 name = "zk-matrix-join-guest"
 path = "main.rs"
+test = false
 
 [dependencies]
 sp1-zkvm = "6.0.2"

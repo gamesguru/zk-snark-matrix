@@ -41,7 +41,7 @@ jobs:
         env:
           MATRIX_TOKEN: ${{ secrets.MATRIX_TOKEN }}
           MATRIX_HOMESERVER: ${{ vars.MATRIX_HOMESERVER || 'https://matrix.org' }}
-        run: make fetch-real-test-room
+        run: make fetch
 
       - name: Execute Full SP1 Host Prover
         run: make prove

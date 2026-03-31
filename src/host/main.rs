@@ -26,9 +26,31 @@ use ruma_events::TimelineEventType;
 use ruma_state_res::{Event, StateMap};
 use std::collections::{BTreeMap, HashSet};
 
+pub mod raw_value_as_string {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde_json::value::RawValue;
+
+    #[allow(clippy::borrowed_box)]
+    pub fn serialize<S>(value: &Box<RawValue>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        value.get().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Box<RawValue>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        RawValue::from_string(s).map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GuestEvent {
     pub event: CanonicalJsonObject,
+    #[serde(with = "raw_value_as_string")]
     pub content: Box<serde_json::value::RawValue>,
     pub event_id: OwnedEventId,
     pub room_id: OwnedRoomId,
@@ -205,9 +227,7 @@ fn main() {
         .unwrap();
 
     let mut stdin = SP1Stdin::new();
-    let mut input_bytes = Vec::new();
-    ciborium::into_writer(&input, &mut input_bytes).expect("Failed to serialize input to CBOR");
-    stdin.write(&input_bytes);
+    stdin.write(&input);
 
     if std::env::var("SP1_PROVE").is_ok() {
         println!("Generating STARK Proof for Matrix State Resolution...");
@@ -320,9 +340,7 @@ mod tests {
         };
 
         let mut stdin = SP1Stdin::new();
-        let mut input_bytes = Vec::new();
-        ciborium::into_writer(&input, &mut input_bytes).expect("Failed to serialize input to CBOR");
-        stdin.write(&input_bytes);
+        stdin.write(&input);
     }
 
     /// Performs a full ZKVM parity check by executing the Guest binary
@@ -409,9 +427,7 @@ mod tests {
         // ZKVM Guest Execution (Simulation)
         let prover_client = ProverClient::builder().cpu().build();
         let mut stdin = SP1Stdin::new();
-        let mut input_bytes = Vec::new();
-        ciborium::into_writer(&input, &mut input_bytes).expect("Failed to serialize input to CBOR");
-        stdin.write(&input_bytes);
+        stdin.write(&input);
 
         let (mut public_values, _report) = prover_client
             .execute(sp1_sdk::Elf::Static(ZK_MATRIX_GUEST_ELF), stdin)

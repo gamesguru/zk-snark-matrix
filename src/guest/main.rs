@@ -28,9 +28,31 @@ use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use std::collections::HashSet;
 
+mod raw_value_as_string {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde_json::value::RawValue;
+
+    #[allow(clippy::borrowed_box)]
+    pub fn serialize<S>(value: &Box<RawValue>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        value.get().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Box<RawValue>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        RawValue::from_string(s).map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GuestEvent {
     pub event: CanonicalJsonObject,
+    #[serde(with = "raw_value_as_string")]
     pub content: Box<serde_json::value::RawValue>,
     pub event_id: OwnedEventId,
     pub room_id: OwnedRoomId,
@@ -108,9 +130,7 @@ pub struct DAGMergeOutput {
 
 pub fn main() {
     // Read the input from the Host (the world-state hint containing events)
-    let input_bytes: alloc::vec::Vec<u8> = sp1_zkvm::io::read();
-    let input: DAGMergeInput =
-        ciborium::from_reader(input_bytes.as_slice()).expect("Failed to parse CBOR inside zkVM");
+    let input: DAGMergeInput = sp1_zkvm::io::read();
 
     println!("cycle-count-start: resolution-initialization");
 

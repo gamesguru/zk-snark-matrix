@@ -38,16 +38,25 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Build
-        run: cargo build --verbose
+        run: cargo build
 
       - name: Run Clippy (Linter)
         run: cargo clippy -- -D warnings
 
       - name: Run ZK MockProver Tests
-        run: cargo test -p zk-matrix-join-host --verbose
+        run: cargo test -p zk-matrix-join-host
 
       - name: Execute Full SP1 Host Prover
+        id: sp1_prove
+        continue-on-error: true
         run: make prove
+
+      - name: Execute Full SP1 Host Prover (Verbose Backtrace Fallback)
+        if: steps.sp1_prove.outcome == 'failure'
+        run: |
+          echo "::error::Initial prover run failed! Rerunning with full backtraces enabled..."
+          RUST_BACKTRACE=full make prove
+          exit 1
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh

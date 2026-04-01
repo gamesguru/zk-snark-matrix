@@ -14,6 +14,7 @@ MATRIX_TOKEN := $(subst ",,$(subst ',,$(MATRIX_TOKEN)))
 MATRIX_HOMESERVER := $(subst ",,$(subst ',,$(MATRIX_HOMESERVER)))
 MATRIX_ROOM_ID := $(subst ",,$(subst ',,$(MATRIX_ROOM_ID)))
 
+export RUST_BACKTRACE ?= 1
 export
 
 STYLE_CYAN := \033[36m

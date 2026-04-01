@@ -1,6 +1,6 @@
 # ZK-Matrix-Join: Trustless Matrix Light Clients
 
-[![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](#) [![SP1 zkVM](https://img.shields.io/badge/sp1-zkVM-blue.svg)](#) [![Status](https://img.shields.io/badge/status-experimental_AF-red.svg)](#)
+[![CI](https://github.com/gamesguru/matrix-zk-stark-dag-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/gamesguru/matrix-zk-stark-dag-demo/actions/workflows/ci.yml) [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](#) [![SP1 zkVM](https://img.shields.io/badge/sp1-zkVM-blue.svg)](#) [![Status](https://img.shields.io/badge/status-experimental_AF-red.svg)](#)
 
 A Layer-2 Zero-Knowledge scaling solution for the Matrix protocol.
 

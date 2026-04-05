@@ -17,10 +17,13 @@ plot = Plot[
   PlotLabel -> Style["ZK-Matrix Join: Scaling Performance (Empirical Results)", Bold, 16],
   GridLines -> Automatic,
   ImageSize -> 800,
-  PlotLegends -> {
-    "Naive Algebraic Intermediate Representation\n(Industry Standard Ruma)", 
-    "Optimized Constraint Model\n(Topological Coprocessor)"
-  },
+  PlotLegends -> Placed[
+    {
+      "Naive Algebraic Intermediate Representation\n(Industry Standard Ruma)",
+      "Optimized Constraint Model\n(Topological Coprocessor)"
+    },
+    Below
+  ],
   Epilog -> {
     (* Only showing the real empirical data points *)
     {ColorData[97, 1], PointSize[0.015], Point[dataNaive]},
@@ -40,5 +43,4 @@ plot = Plot[
 ];
 
 Export["../res/benchmark_visualization.png", plot];
-Print["Yeah, visualization exported to ../res/benchmark_visualization.png"];
-
+Print["Visualization exported to ../res/benchmark_visualization.png"]

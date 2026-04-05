@@ -1,13 +1,11 @@
 #!/usr/local/bin/WolframKernel -script
-(* ::Package:: *)
-
 (* ZK-Matrix Join Benchmark: Empirical Data Plotting *)
 
 dataNaive = {{1000, 71437296}, {5000, 450271496}, {10000, 893025827}};
 dataOptimized = {{1000, 2145908}, {5000, 10657944}, {10000, 21299845}};
 
-(* Best-fit complexity curves *)
-fitNaive = NonlinearModelFit[dataNaive, a * n * Log2[n], {a}, n];
+(* Best-fit complexity curves - Using Log2 to reflect binary search/tree scaling *)
+fitNaive = NonlinearModelFit[dataNaive, a * n * Log[2, n], {a}, n];
 fitOptimized = LinearModelFit[dataOptimized, n, n];
 
 plot = Plot[
@@ -20,7 +18,7 @@ plot = Plot[
   GridLines -> Automatic,
   ImageSize -> 800,
   PlotLegends -> {
-    "Naive Algebraic Intermediate Representation\n(Industry Standard Ruma)",
+    "Naive Algebraic Intermediate Representation\n(Industry Standard Ruma)", 
     "Optimized Constraint Model\n(Topological Coprocessor)"
   },
   Epilog -> {
@@ -39,7 +37,8 @@ plot = Plot[
       {3000, 7*10^8}
     ]
   }
-]
+];
 
 Export["../res/benchmark_visualization.png", plot];
-Print["Visualization exported to ../res/benchmark_visualization.png"];
+Print["Yeah, visualization exported to ../res/benchmark_visualization.png"];
+

@@ -18,6 +18,7 @@
 
 # force add these if you really want some
 res/*.json
+scripts/res
 
 # macOS/backup files
 .~*

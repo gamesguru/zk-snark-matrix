@@ -90,7 +90,7 @@ jobs:
       - name: Benchmark Matrix Performance (Multi-Point Comparison)
         run: |
           sudo apt-get install -y jq
-          echo "### 🚀 ZK-Matrix Benchmarks (Scaling Report)" >> $GITHUB_STEP_SUMMARY
+          echo "### [!] ZK-Matrix Benchmarks (Scaling Report)" >> $GITHUB_STEP_SUMMARY
           echo "| DAG Size | Naive (Cycles) | Optimized (Cycles) | Speedup | Status |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- | :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
 

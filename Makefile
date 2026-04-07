@@ -31,14 +31,32 @@ build: ##H Build the Rust project
 	$(CARGO) build
 
 .PHONY: run
-run: ##H Run the ZK-Matrix-Join Demo
-	@echo "Running ZK-Matrix-Join Demo..."
-	$(CARGO) run --bin zk-matrix-join-host
+run: benchmark
+
+.PHONY: benchmark
+benchmark: ##H Run the ZK-Matrix-Join Simulation
+	@echo "Running ZK-Matrix-Join Benchmark..."
+	$(CARGO) run --release --bin zk-matrix-join-host
+
+.PHONY: benchmark-lite
+benchmark-lite: ##H Run Simulation with Tiny 5-Event Graph
+	@echo "Running ZK-Matrix-Join Benchmark (Lite)..."
+	MATRIX_FIXTURE_PATH=res/ruma_bootstrap_events.json $(CARGO) run --release --bin zk-matrix-join-host
+
+.PHONY: prove
+prove: ##H Generate full SP1 STARK Proof
+	@echo "Generating Pure STARK Proof..."
+	SP1_PROVE=1 $(CARGO) run --release --bin zk-matrix-join-host
 
 .PHONY: prove-fast
 prove-fast: ##H Run the hyper-optimized 10k Math Graph Benchmark (No SP1 VM)
 	@echo "Executing Pure Math Topological Benchmark..."
 	$(CARGO) run --release -p pure-topological-prover
+
+.PHONY: prove-lite
+prove-lite: ##H Generate full SP1 Groth16 Proof for WebAssembly
+	@echo "Generating Groth16 Proof for WASM..."
+	SP1_PROVE=1 SP1_GROTH16=true MATRIX_FIXTURE_PATH=res/ruma_bootstrap_events.json $(CARGO) run --release --bin zk-matrix-join-host
 
 .PHONY: wasm
 wasm: ##H Build the WebAssembly light-client Verifier

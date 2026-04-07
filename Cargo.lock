@@ -2679,6 +2679,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "p3-keccak"
+version = "0.3.2-succinct"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30754c2d35ffc450294f1355621e2a54a740f5936a7e147cd3e2ffbf301e624c"
+dependencies = [
+ "p3-symmetric",
+ "tiny-keccak",
+]
+
+[[package]]
 name = "p3-keccak-air"
 version = "0.3.2-succinct"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3129,6 +3139,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "pure-topological-prover"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-challenger",
+ "p3-commit",
+ "p3-dft",
+ "p3-field",
+ "p3-fri",
+ "p3-keccak",
+ "p3-matrix",
+ "p3-merkle-tree",
+ "p3-symmetric",
+ "p3-uni-stark",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "quinn"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3141,7 +3175,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -3178,9 +3212,9 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

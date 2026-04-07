@@ -30,3 +30,5 @@ scripts/res
 # top level files and others
 /*.log
 /*.diff
+proof.bin
+proof.json

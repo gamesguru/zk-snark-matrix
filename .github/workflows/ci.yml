@@ -18,6 +18,9 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +36,12 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+
+      - name: Cache SP1 Groth16 Setup
+        uses: actions/cache@v4
+        with:
+          path: ~/.sp1/circuits
+          key: sp1-groth16-${{ runner.os }}
 
       - name: Setup SP1 Toolchain
         run: |
@@ -130,3 +139,13 @@ jobs:
 
       - name: Build WASM Web Client
         run: make wasm
+
+      - name: Save Summary for PR Comment
+        if: github.event_name == 'pull_request'
+        run: cp $GITHUB_STEP_SUMMARY pr_comment.md
+
+      - name: Comment PR with Benchmark Results
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: pr_comment.md

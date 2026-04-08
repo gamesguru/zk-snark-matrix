@@ -140,7 +140,7 @@ fn main() {
     // The Host does the heavy lifting: resolving the state according to Kahn's topological sort.
     // Here we simulate the result of `ruma_state_res::resolve` mathematically sorting the events.
     // Read the true downloaded Matrix State DAG!
-    let state_file_path = "res/real_matrix_state.json";
+    let state_file_path = "res/real_5k.json";
     let fallback_path = "res/massive_matrix_state.json";
     let ruma_path = "res/ruma_bootstrap_events.json";
 

@@ -19,18 +19,15 @@ use serde_json::json;
 /// Format: (Sender, PowerLevel, Timestamp, Depth, Parents, StateKey)
 pub type FixtureRow<'a> = (&'a str, i64, u64, u64, &'a [&'a str], &'a str);
 
-pub fn parse_fixture_rows(
-    room_id: &str,
-    rows: &[FixtureRow],
-) -> Vec<GuestEvent> {
+pub fn parse_fixture_rows(room_id: &str, rows: &[FixtureRow]) -> Vec<GuestEvent> {
     let mut events = Vec::new();
-    
+
     for (i, r) in rows.iter().enumerate() {
         let (sender_name, _power_level, ts, _depth, parents, state_key) = *r;
-        
+
         let event_id = format!("${}:example.com", i);
         let sender = format!("@{}:example.com", sender_name);
-        
+
         let event_json = json!({
             "event_id": event_id,
             "room_id": room_id,
@@ -53,14 +50,17 @@ pub fn parse_fixture_rows(
             room_id: room_id.to_string(),
             sender,
             event_type: "m.room.member".to_string(),
-            prev_events: parents.iter().map(|p| format!("${}:example.com", p)).collect(),
+            prev_events: parents
+                .iter()
+                .map(|p| format!("${}:example.com", p))
+                .collect(),
             auth_events: vec![],
             public_key: None,
             signature: None,
             verified_on_host: false,
         });
     }
-    
+
     events
 }
 
@@ -73,9 +73,9 @@ mod tests {
         let room_id = "!test:example.com";
         let rows: &[FixtureRow] = &[
             ("Alice", 100, 10, 1, &[], "alice"),
-            ("Bob",   50,  20, 2, &["0"], "bob"),
+            ("Bob", 50, 20, 2, &["0"], "bob"),
         ];
-        
+
         let events = parse_fixture_rows(room_id, rows);
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].sender, "@Alice:example.com");

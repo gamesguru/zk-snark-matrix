@@ -19,6 +19,7 @@ _Using a hybrid approach where the Host pre-computes the sort and the Guest veri
 - **Status**: **Current Production Path**. Achieves 10x speedup over Path A.
 
 ### Implementation Details:
+
 1.  **Host-side Sort**: The host performs the expensive Kahn's sort natively in Rust.
 2.  **Topological Flattening**: The DAG is mapped to a hypercube. Each edge in the DAG must correspond to a valid path in the hypercube.
 3.  **Linear Verification**: The Guest receives a list of coordinate "hops" and asserts that exactly one bit is flipped per hop. This guarantees the sequence is topologically valid.

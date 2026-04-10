@@ -14,8 +14,8 @@
 
 #![forbid(unsafe_code)]
 
-use serde::{Deserialize, Serialize};
 use jolt_sdk::host::Program;
+use serde::{Deserialize, Serialize};
 
 // Represents the binary, packed data we send to the guest as a Hint.
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -118,20 +118,33 @@ fn main() {
                     Some(x) => x.clone(),
                     None => return None,
                 };
-                let content = ev.get("content").cloned().unwrap_or(serde_json::Value::Null);
+                let content = ev
+                    .get("content")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
                 let event_id = ev.get("event_id")?.as_str()?.to_string();
                 let room_id = ev.get("room_id")?.as_str()?.to_string();
                 let sender = ev.get("sender")?.as_str()?.to_string();
                 let event_type = ev.get("type")?.as_str()?.to_string();
-                
-                let prev_events: Vec<String> = ev.get("prev_events")
+
+                let prev_events: Vec<String> = ev
+                    .get("prev_events")
                     .and_then(|v| v.as_array())
-                    .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default();
-                
-                let auth_events: Vec<String> = ev.get("auth_events")
+
+                let auth_events: Vec<String> = ev
+                    .get("auth_events")
                     .and_then(|v| v.as_array())
-                    .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default();
 
                 Some(GuestEvent {
@@ -205,8 +218,8 @@ fn main() {
                             if let Some(key_base64) = key_info.get("key").and_then(|k| k.as_str()) {
                                 // Convert base64 to hex for our simple cache
                                 use base64::Engine;
-                                if let Ok(bytes) = base64::engine::general_purpose::STANDARD
-                                    .decode(key_base64)
+                                if let Ok(bytes) =
+                                    base64::engine::general_purpose::STANDARD.decode(key_base64)
                                 {
                                     return Some((server, hex::encode(bytes)));
                                 }
@@ -380,9 +393,10 @@ fn main() {
         if is_unoptimized {
             println!("> Mode: UNOPTIMIZED (Full Spec State Resolution)");
             let mut cp = Program::new("src/guest-unoptimized");
-            let sp = preprocess_shared_resolve_full_spec(&mut cp).expect("shared preprocess failed");
+            let sp =
+                preprocess_shared_resolve_full_spec(&mut cp).expect("shared preprocess failed");
             let pp = preprocess_prover_resolve_full_spec(sp);
-            
+
             let guest_input = zk_matrix_join_guest_unoptimized::DAGMergeInput {
                 room_version: "10".to_string(),
                 event_map: event_map
@@ -422,13 +436,8 @@ fn main() {
             let mut cp = Program::new("src/guest");
             let sp = preprocess_shared_verify_topology(&mut cp).expect("shared preprocess failed");
             let pp = preprocess_prover_verify_topology(sp);
-            let (output, _proof, _commitments) = prove_verify_topology(
-                &cp,
-                pp,
-                edges,
-                expected_hash,
-                events.len() as u32,
-            );
+            let (output, _proof, _commitments) =
+                prove_verify_topology(&cp, pp, edges, expected_hash, events.len() as u32);
             println!("✓ Jolt Proof Generated Successfully!");
             println!(
                 "Matrix Resolved State Hash (Journal): {:?}",

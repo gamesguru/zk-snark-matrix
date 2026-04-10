@@ -53,11 +53,6 @@ prove: ##H Generate full Jolt STARK Proof
 	@echo "Generating Jolt STARK Proof..."
 	JOLT_PROVE=1 RUST_LOG=info $(CARGO) run --release --bin zk-matrix-join-host
 
-.PHONY: prove-fast
-
-.PHONY: wasm
-
-.PHONY: web-demo
 .PHONY: test
 test: ##H Run fast Native Resolution tests (<1s)
 	@echo "Running Fast Native Tests..."
@@ -152,5 +147,5 @@ clean: ##H Clean up cache and optionally build artifacts
 # Messes up vim/sublime syntax highlighting, so it's at the end!
 .PHONY: help
 help: ##H Show this help, list available targets
-	@grep -hE '^[a-zA-Z0-9_\/\-]+:.*?##H .*$$' $(MAKEFILE_LIST) \
+	@grep -hE '^[a-zA-Z0-9_\/-]+:.*?##H .*$$' $(MAKEFILE_LIST) \
 		        | awk 'BEGIN {FS = ":.*?##H "}; {printf "$(STYLE_CYAN)%%-20s$(STYLE_RESET) %%s\n", $$1, $$2}'

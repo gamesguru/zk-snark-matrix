@@ -17,11 +17,11 @@ Standard Kahn's algorithm or Depth-First Search (DFS) inside a zkVM involves fre
 
 By combining the topological reducer with Jolt's lookup-based architecture, we achieve high-performance verifiable state resolution:
 
-| Events | Pipeline | ZK Engine | Cycles (Estimated) |
-| :--- | :--- | :--- | :--- |
-| 1,000 | Full Spec (v2) | Jolt | 5,000,000 |
-| 1,000 | **Topological Reducer** | **Jolt** | **800,000** |
-| 10,000 | **Topological Reducer** | **Jolt** | **7,500,000** |
+| Events | Pipeline                | ZK Engine | Cycles (Estimated) |
+| :----- | :---------------------- | :-------- | :----------------- |
+| 1,000  | Full Spec (v2)          | Jolt      | 5,000,000          |
+| 1,000  | **Topological Reducer** | **Jolt**  | **800,000**        |
+| 10,000 | **Topological Reducer** | **Jolt**  | **7,500,000**      |
 
 _Note: Jolt's performance is measured in sumcheck evaluations and lookup table hits, which translate to significantly faster wall-clock proof generation compared to legacy RISC-V STARKs._
 

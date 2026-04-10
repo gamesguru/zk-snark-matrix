@@ -11,6 +11,3 @@ sha2 = "0.10.8"
 ciborium = "0.2.2"
 hashbrown = "0.14"
 jolt-sdk = { git = "https://github.com/a16z/jolt.git", features = ["guest-std", "host"] }
-
-
-

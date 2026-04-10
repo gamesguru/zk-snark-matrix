@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #![cfg_attr(feature = "guest", no_std)]
+#![cfg_attr(feature = "guest", no_main)]
 #![forbid(unsafe_code)]
 #![allow(unexpected_cfgs)]
 
@@ -20,9 +21,17 @@
 extern crate alloc;
 
 #[cfg(feature = "guest")]
-use alloc::{collections::BTreeMap, string::{String, ToString}, vec::Vec};
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec::Vec,
+};
 #[cfg(not(feature = "guest"))]
-use std::{collections::BTreeMap, string::{String, ToString}, vec::Vec};
+use std::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec::Vec,
+};
 
 use jolt::provable;
 use ruma_lean::{lean_kahn_sort, HashMap, LeanEvent, StateResVersion};
@@ -65,7 +74,7 @@ pub struct DAGMergeOutput {
     pub event_count: u32,
 }
 
-#[provable]
+#[provable(max_input_size = 10485760, max_trace_length = 104857600)]
 pub fn resolve_full_spec(_input_bytes: Vec<u8>) -> DAGMergeOutput {
     let input: DAGMergeInput =
         ciborium::from_reader(_input_bytes.as_slice()).expect("Failed to deserialize input");

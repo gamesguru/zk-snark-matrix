@@ -1108,7 +1108,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
- "allocator-api2",
 ]
 
 [[package]]
@@ -2138,9 +2137,10 @@ checksum = "d3f2ad9f15a07f4a0e1677124f9120ce7e83ab7e1ca7186af0ca9da529b62e80"
 [[package]]
 name = "ruma-lean"
 version = "0.1.1"
-source = "git+https://github.com/gamesguru/ruma-lean.git#a891302a2f0a4cbe3758c8fdaab7eff9d282c72e"
 dependencies = [
+ "anyhow",
  "base64",
+ "clap",
  "ed25519-consensus",
  "hashbrown 0.14.5",
  "hex",
@@ -2162,33 +2162,8 @@ dependencies = [
  "rayon",
  "reqwest",
  "ruma-lean",
- "ruma-zk-guest",
- "ruma-zk-guest-unoptimized",
- "serde",
- "serde_json",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "ruma-zk-guest"
-version = "0.1.0"
-dependencies = [
- "ciborium",
- "jolt-sdk",
- "ruma-lean",
- "serde",
- "serde_json",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "ruma-zk-guest-unoptimized"
-version = "0.1.0"
-dependencies = [
- "ciborium",
- "hashbrown 0.14.5",
- "jolt-sdk",
- "ruma-lean",
+ "ruma_zk_guest",
+ "ruma_zk_guest_unoptimized",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -2204,6 +2179,31 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-test",
  "web-time",
+]
+
+[[package]]
+name = "ruma_zk_guest"
+version = "0.1.0"
+dependencies = [
+ "ciborium",
+ "jolt-sdk",
+ "ruma-lean",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "ruma_zk_guest_unoptimized"
+version = "0.1.0"
+dependencies = [
+ "ciborium",
+ "hashbrown 0.14.5",
+ "jolt-sdk",
+ "ruma-lean",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]

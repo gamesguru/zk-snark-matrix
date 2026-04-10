@@ -578,7 +578,7 @@ fn main() {
             println!("Generating Jolt Proof for Matrix State Resolution...");
             if unoptimized {
                 println!("> Mode: UNOPTIMIZED (Full Spec State Resolution)");
-                let mut cp = Program::new("ruma-zk-guest-unoptimized");
+                let mut cp = Program::new("demo_unoptimized_guest");
                 let sp = ruma_zk_guest_unoptimized::preprocess_shared_resolve_full_spec(&mut cp)
                     .expect("shared preprocess failed");
                 let pp = ruma_zk_guest_unoptimized::preprocess_prover_resolve_full_spec(sp);
@@ -626,7 +626,7 @@ fn main() {
                     .expect("Failed to save proof");
             } else {
                 println!("> Mode: OPTIMIZED (Topological Reducer)");
-                let mut cp = Program::new("ruma-zk-guest");
+                let mut cp = Program::new("ruma_zk_guest");
                 let sp = ruma_zk_guest::preprocess_shared_verify_topology(&mut cp)
                     .expect("shared preprocess failed");
                 let pp = ruma_zk_guest::preprocess_prover_verify_topology(sp);
@@ -676,7 +676,7 @@ fn main() {
             println!("> Setting up Jolt verifier environment...");
 
             if unoptimized {
-                let mut cp = Program::new("ruma-zk-guest-unoptimized");
+                let mut cp = Program::new("demo_unoptimized_guest");
                 let sp = ruma_zk_guest_unoptimized::preprocess_shared_resolve_full_spec(&mut cp)
                     .expect("shared preprocess failed");
                 let pp = ruma_zk_guest_unoptimized::preprocess_prover_resolve_full_spec(sp);
@@ -695,7 +695,7 @@ fn main() {
                 let _ = verify_fn;
                 println!("✓ PROOF STRUCTURE & VERIFIER CLOSURE READY!");
             } else {
-                let mut cp = Program::new("ruma-zk-guest");
+                let mut cp = Program::new("ruma_zk_guest");
                 let sp = ruma_zk_guest::preprocess_shared_verify_topology(&mut cp)
                     .expect("shared preprocess failed");
                 let pp = ruma_zk_guest::preprocess_prover_verify_topology(sp);

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #![cfg_attr(feature = "guest", no_std)]
+#![cfg_attr(feature = "guest", no_main)]
 #![forbid(unsafe_code)]
 #![allow(unexpected_cfgs)]
 
@@ -33,7 +34,7 @@ pub struct DAGMergeOutput {
     pub event_count: u32,
 }
 
-#[provable]
+#[provable(max_input_size = 1048576, max_trace_length = 1048576)]
 pub fn verify_topology(
     edges: Vec<(u32, u32)>,
     expected_hash: [u8; 32],

@@ -464,7 +464,7 @@ fn main() {
                 println!("Generating Jolt Proof for Matrix State Resolution...");
                 if unoptimized {
                     println!("> Mode: UNOPTIMIZED (Full Spec State Resolution)");
-                    let mut cp = Program::new("src/guest-unoptimized");
+                    let mut cp = Program::new("demo-unoptimized-guest");
                     let sp = preprocess_shared_resolve_full_spec(&mut cp)
                         .expect("shared preprocess failed");
                     let pp = preprocess_prover_resolve_full_spec(sp);
@@ -510,7 +510,7 @@ fn main() {
                         .expect("Failed to save proof");
                 } else {
                     println!("> Mode: OPTIMIZED (Topological Reducer)");
-                    let mut cp = Program::new("src/guest");
+                    let mut cp = Program::new("ruma-zk/guest");
                     let sp = preprocess_shared_verify_topology(&mut cp)
                         .expect("shared preprocess failed");
                     let pp = preprocess_prover_verify_topology(sp);
@@ -600,7 +600,7 @@ fn main() {
             println!("> Setting up Jolt verifier environment...");
 
             if unoptimized {
-                let mut cp = Program::new("src/guest-unoptimized");
+                let mut cp = Program::new("demo-unoptimized-guest");
                 let sp =
                     preprocess_shared_resolve_full_spec(&mut cp).expect("shared preprocess failed");
                 let pp = preprocess_prover_resolve_full_spec(sp);
@@ -616,7 +616,7 @@ fn main() {
                 let _ = verify_fn;
                 println!("✓ PROOF STRUCTURE & VERIFIER CLOSURE READY!");
             } else {
-                let mut cp = Program::new("src/guest");
+                let mut cp = Program::new("ruma-zk/guest");
                 let sp =
                     preprocess_shared_verify_topology(&mut cp).expect("shared preprocess failed");
                 let pp = preprocess_prover_verify_topology(sp);

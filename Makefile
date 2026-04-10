@@ -36,27 +36,27 @@ run: benchmark
 .PHONY: benchmark
 benchmark: ##H Run the ZK-Matrix-Join Simulation
 	@echo "Running ZK-Matrix-Join Benchmark..."
-	$(CARGO) run --release --bin ruma-zk-host -- run
+	$(CARGO) run --release --bin ruma-zk -- run
 
 .PHONY: benchmark-lite
 benchmark-lite: ##H Run Simulation with Tiny 5-Event Graph
 	@echo "Running ZK-Matrix-Join Benchmark (Lite)..."
-	$(CARGO) run --release --bin ruma-zk-host -- run --input res/ruma_bootstrap_events.json
+	$(CARGO) run --release --bin ruma-zk -- run --input res/ruma_bootstrap_events.json
 
 .PHONY: benchmark-batch
 benchmark-batch: ##H Run Simulation with Concise DSL Fixtures
 	@echo "Running ZK-Matrix-Join Benchmark (Batch DSL)..."
-	$(CARGO) run --release --bin ruma-zk-host -- run --batch demo
+	$(CARGO) run --release --bin ruma-zk -- run --batch demo
 
 .PHONY: prove
 prove: ##H Generate full Jolt STARK Proof
 	@echo "Generating Jolt STARK Proof..."
-	RUST_LOG=info $(CARGO) run --release --bin ruma-zk-host -- run --prove
+	RUST_LOG=info $(CARGO) run --release --bin ruma-zk -- run --prove
 
 .PHONY: verify
 verify: ##H Verify an existing Jolt STARK Proof
 	@echo "Verifying Jolt STARK Proof..."
-	$(CARGO) run --release --bin ruma-zk-host -- verify
+	$(CARGO) run --release --bin ruma-zk -- verify
 
 .PHONY: wasm
 wasm: ##H Build the WebAssembly light-client Verifier
@@ -75,14 +75,14 @@ web-demo: ##H Run a local web server to test the WASM UI
 .PHONY: test
 test: ##H Run fast Native Resolution tests (<1s)
 	@echo "Running Fast Native Tests..."
-	$(CARGO) test -p ruma-zk-host -- --nocapture
+	$(CARGO) test -p ruma-zk -- --nocapture
 	@echo "Running ruma-lean formal parity tests..."
 	$(CARGO) test -p ruma-lean
 
 .PHONY: test-zk
 test-zk: ##H Run the full Jolt Parity Simulation
 	@echo "Running Deep Jolt Parity Simulation..."
-	RUST_LOG=info RAYON_NUM_THREADS=1 $(CARGO) test --release -p ruma-zk-host -- --ignored --nocapture --test-threads=1
+	RUST_LOG=info RAYON_NUM_THREADS=1 $(CARGO) test --release -p ruma-zk -- --ignored --nocapture --test-threads=1
 
 .PHONY: setup
 setup: ##H Combined: Fetch real Matrix data and Ruma state resolution fixtures

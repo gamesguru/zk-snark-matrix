@@ -2149,6 +2149,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ruma-zk"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bincode 1.3.3",
+ "ciborium",
+ "clap",
+ "ed25519-consensus",
+ "hex",
+ "jolt-sdk",
+ "rayon",
+ "reqwest",
+ "ruma-lean",
+ "ruma-zk-guest",
+ "ruma-zk-guest-unoptimized",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "ruma-zk-guest"
 version = "0.1.0"
 dependencies = [
@@ -2168,27 +2189,6 @@ dependencies = [
  "hashbrown 0.14.5",
  "jolt-sdk",
  "ruma-lean",
- "serde",
- "serde_json",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "ruma-zk-host"
-version = "0.1.0"
-dependencies = [
- "base64",
- "bincode 1.3.3",
- "ciborium",
- "clap",
- "ed25519-consensus",
- "hex",
- "jolt-sdk",
- "rayon",
- "reqwest",
- "ruma-lean",
- "ruma-zk-guest",
- "ruma-zk-guest-unoptimized",
  "serde",
  "serde_json",
  "sha2 0.10.9",

@@ -14,8 +14,8 @@ path = "src/main.rs"
 [dependencies]
 jolt-sdk = { version = "0.1.0", git = "https://github.com/a16z/jolt.git", features = ["host"] }
 clap = { version = "4.4", features = ["derive"] }
-ruma-zk-guest = { version = "0.1.0", path = "./guest" }
-ruma-zk-guest-unoptimized = { version = "0.1.0", path = "../demo-unoptimized-guest" }
+ruma-zk-guest = { version = "0.1.0", path = "./guest", features = ["host"] }
+ruma-zk-guest-unoptimized = { version = "0.1.0", path = "../demo-unoptimized-guest", features = ["host"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10.8"

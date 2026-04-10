@@ -3478,6 +3478,7 @@ dependencies = [
  "zeroos-foundation",
  "zeroos-macros",
  "zeroos-os-linux",
+ "zeroos-runtime-musl",
  "zeroos-runtime-nostd",
  "zeroos-scheduler-cooperative",
 ]
@@ -3544,6 +3545,16 @@ source = "git+https://github.com/LayerZero-Labs/ZeroOS.git?rev=3b132ce862ba6769a
 dependencies = [
  "cfg-if",
  "libc",
+ "zeroos-foundation",
+]
+
+[[package]]
+name = "zeroos-runtime-musl"
+version = "0.1.0"
+source = "git+https://github.com/LayerZero-Labs/ZeroOS.git?rev=3b132ce862ba6769a4261d151f69ff32c5f0dc30#3b132ce862ba6769a4261d151f69ff32c5f0dc30"
+dependencies = [
+ "zeroos-backtrace",
+ "zeroos-debug",
  "zeroos-foundation",
 ]
 

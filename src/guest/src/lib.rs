@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #![forbid(unsafe_code)]
+#![allow(unexpected_cfgs)]
 
-use jolt_sdk as jolt;
+extern crate jolt_sdk as jolt;
+use jolt::*;
 use serde::{Deserialize, Serialize};
 use std::vec::Vec;
 
@@ -24,7 +26,7 @@ pub struct DAGMergeOutput {
     pub event_count: u32,
 }
 
-#[jolt::provable]
+#[provable]
 pub fn verify_topology(
     edges: Vec<(u32, u32)>,
     expected_hash: [u8; 32],
@@ -34,7 +36,6 @@ pub fn verify_topology(
         let curr = edge.0;
         let next = edge.1;
 
-        // Verify topological constraint: Exactly one bit must be flipped per hop.
         let diff = curr ^ next;
         if diff.count_ones() != 1 {
             panic!("Invalid topological route: multiple bits flipped");

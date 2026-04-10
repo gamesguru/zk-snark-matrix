@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src/host", "src/guest", "src/guest-unoptimized", "src/wasm-client", "src/topological-prover", "ruma-lean"]
+members = ["src/host", "src/guest", "src/guest-unoptimized", "src/wasm-client", "ruma-lean"]
 
 [workspace.package]
 version = "0.1.0"

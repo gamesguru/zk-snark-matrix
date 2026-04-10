@@ -13,47 +13,45 @@
 // limitations under the License.
 
 #![forbid(unsafe_code)]
+#![allow(unexpected_cfgs)]
 
-use jolt_sdk as jolt;
-use ruma_common::{CanonicalJsonObject, OwnedEventId, RoomVersionId};
-use ruma_events::TimelineEventType;
+extern crate jolt_sdk as jolt;
+use jolt::*;
 use ruma_lean::{lean_kahn_sort, HashMap, LeanEvent, StateResVersion};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::boxed::Box;
 use std::collections::BTreeMap;
 use std::string::ToString;
 use std::vec::Vec;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GuestEvent {
-    pub event: CanonicalJsonObject,
-    pub content: Box<serde_json::value::RawValue>,
-    pub event_id: OwnedEventId,
-    pub room_id: ruma_common::OwnedRoomId,
-    pub sender: ruma_common::OwnedUserId,
-    pub event_type: TimelineEventType,
-    pub prev_events: Vec<OwnedEventId>,
-    pub auth_events: Vec<OwnedEventId>,
+    pub event: serde_json::Map<String, serde_json::Value>,
+    pub content: Vec<u8>,
+    pub event_id: String,
+    pub room_id: String,
+    pub sender: String,
+    pub event_type: String,
+    pub prev_events: Vec<String>,
+    pub auth_events: Vec<String>,
     pub public_key: Option<Vec<u8>>,
     pub signature: Option<Vec<u8>>,
     pub verified_on_host: bool,
 }
 
 impl GuestEvent {
-    fn origin_server_ts(&self) -> ruma_common::MilliSecondsSinceUnixEpoch {
-        let val = self
-            .event
+    fn origin_server_ts(&self) -> u64 {
+        self.event
             .get("origin_server_ts")
-            .expect("missing origin_server_ts");
-        serde_json::from_value(val.clone().into()).expect("invalid origin_server_ts")
+            .and_then(|v| v.as_u64())
+            .expect("missing or invalid origin_server_ts")
     }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DAGMergeInput {
-    pub room_version: RoomVersionId,
-    pub event_map: BTreeMap<OwnedEventId, GuestEvent>,
+    pub room_version: String,
+    pub event_map: BTreeMap<String, GuestEvent>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -62,66 +60,50 @@ pub struct DAGMergeOutput {
     pub event_count: u32,
 }
 
-#[jolt::provable]
-pub fn resolve_full_spec(input: DAGMergeInput) -> DAGMergeOutput {
+#[provable]
+pub fn resolve_full_spec(_input_bytes: Vec<u8>) -> DAGMergeOutput {
+    let input: DAGMergeInput =
+        ciborium::from_reader(_input_bytes.as_slice()).expect("Failed to deserialize input");
     let event_count = input.event_map.len() as u32;
 
     let mut conflicted_events = HashMap::new();
     for (id, guest_ev) in &input.event_map {
-        // [Security] Verify Ed25519 signatures if keys are available
-        if let (Some(_pk), Some(_sig)) = (&guest_ev.public_key, &guest_ev.signature) {
-            // Placeholder for Jolt Ed25519 verification
-            if guest_ev.verified_on_host {
-                // Trust but verify
-            }
-        }
-
         let lean_ev = LeanEvent {
-            event_id: id.to_string(),
-            power_level: 0, // Simplified for demo
-            origin_server_ts: guest_ev.origin_server_ts().0.into(),
-            prev_events: guest_ev
-                .prev_events
-                .iter()
-                .map(|id| id.to_string())
-                .collect(),
-            depth: 0, // Simplified for demo
+            event_id: id.clone(),
+            power_level: 0,
+            origin_server_ts: guest_ev.origin_server_ts(),
+            prev_events: guest_ev.prev_events.clone(),
+            depth: 0,
         };
         conflicted_events.insert(lean_ev.event_id.clone(), lean_ev);
     }
 
     let sorted_ids = lean_kahn_sort(&conflicted_events, StateResVersion::V2);
 
-    // Build the resolved state map based on the sorted order (Last-Writer-Wins)
     let mut resolved_state = BTreeMap::new();
     for id in sorted_ids {
-        if let Some(ev) = input.event_map.get(&OwnedEventId::try_from(id).unwrap()) {
+        if let Some(ev) = input.event_map.get(&id) {
             let key = (
-                ev.event_type.to_string(),
+                ev.event_type.clone(),
                 ev.event
                     .get("state_key")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
                     .to_string(),
             );
             resolved_state.insert(key, ev.event_id.clone());
         }
     }
 
-    // Journal Commitment: Fingerprint the resolved state
     let mut hasher = Sha256::new();
-
     for (key, event_id) in resolved_state {
         hasher.update(key.0.as_bytes());
         hasher.update(key.1.as_bytes());
-        hasher.update(event_id.as_str().as_bytes());
+        hasher.update(event_id.as_bytes());
     }
 
-    let expected_hash: [u8; 32] = hasher.finalize().into();
-
     DAGMergeOutput {
-        resolved_state_hash: expected_hash,
+        resolved_state_hash: hasher.finalize().into(),
         event_count,
     }
 }

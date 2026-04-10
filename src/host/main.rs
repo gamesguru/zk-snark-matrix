@@ -14,69 +14,38 @@
 
 #![forbid(unsafe_code)]
 
-use jolt_sdk;
 use serde::{Deserialize, Serialize};
+use jolt_sdk::host::Program;
 
 // Represents the binary, packed data we send to the guest as a Hint.
-use ruma_common::{CanonicalJsonObject, OwnedEventId, OwnedRoomId, OwnedUserId, RoomVersionId};
-use ruma_events::TimelineEventType;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-pub type StateMap<K> = BTreeMap<(ruma_events::StateEventType, String), K>;
+pub type StateMap<K> = BTreeMap<(String, String), K>;
 
 use ruma_lean::LeanEvent;
 
-pub mod raw_value_as_string {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use serde_json::value::RawValue;
-
-    #[allow(clippy::borrowed_box)]
-    pub fn serialize<S>(value: &Box<RawValue>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        value.get().serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Box<RawValue>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        RawValue::from_string(s).map_err(serde::de::Error::custom)
-    }
-}
-
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GuestEvent {
-    pub event: CanonicalJsonObject,
-    #[serde(with = "raw_value_as_string")]
-    pub content: Box<serde_json::value::RawValue>,
-    pub event_id: OwnedEventId,
-    pub room_id: OwnedRoomId,
-    pub sender: OwnedUserId,
-    pub event_type: TimelineEventType,
-    pub prev_events: Vec<OwnedEventId>,
-    pub auth_events: Vec<OwnedEventId>,
+    pub event: serde_json::Map<String, serde_json::Value>,
+    pub content: serde_json::Value,
+    pub event_id: String,
+    pub room_id: String,
+    pub sender: String,
+    pub event_type: String,
+    pub prev_events: Vec<String>,
+    pub auth_events: Vec<String>,
     pub public_key: Option<Vec<u8>>,
     pub signature: Option<Vec<u8>>,
     pub verified_on_host: bool,
 }
 
 impl GuestEvent {
-    fn origin_server_ts(&self) -> ruma_common::MilliSecondsSinceUnixEpoch {
-        let val = self
-            .event
+    fn origin_server_ts(&self) -> u64 {
+        self.event
             .get("origin_server_ts")
-            .expect("missing origin_server_ts");
-        serde_json::from_value(val.clone().into()).expect("invalid origin_server_ts")
+            .and_then(|v| v.as_u64())
+            .expect("missing or invalid origin_server_ts")
     }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct DAGMergeInput {
-    pub room_version: RoomVersionId,
-    pub event_map: BTreeMap<OwnedEventId, GuestEvent>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -87,11 +56,14 @@ pub struct DAGMergeOutput {
 
 mod fixtures;
 
+use zk_matrix_join_guest::*;
+use zk_matrix_join_guest_unoptimized::*;
+
 fn main() {
     println!("* Starting ZK-Matrix-Join Jolt Demo...");
     println!("--------------------------------------------------");
 
-    let room_id = OwnedRoomId::try_from("!demo:example.com").unwrap();
+    let room_id = "!demo:example.com".to_string();
     let mut fixture_path_str = "res/custom".to_string();
     let total_raw_len;
 
@@ -142,100 +114,31 @@ fn main() {
                     );
                 }
 
-                let event = match serde_json::from_value::<CanonicalJsonObject>(ev.clone()) {
-                    Ok(x) => x,
-                    Err(e) => {
-                        if i == 1 {
-                            println!("Event 1 Failed at event: {}", e);
-                        }
-                        return None;
-                    }
+                let event = match ev.as_object() {
+                    Some(x) => x.clone(),
+                    None => return None,
                 };
-                let content_val = match ev.get("content") {
-                    Some(v) => v.clone(),
-                    None => {
-                        if i == 1 {
-                            println!("Event 1 Failed at content missing");
-                        }
-                        return None;
-                    }
-                };
-                let content =
-                    match serde_json::from_value::<Box<serde_json::value::RawValue>>(content_val) {
-                        Ok(x) => x,
-                        Err(e) => {
-                            if i == 1 {
-                                println!("Event 1 Failed at content: {}", e);
-                            }
-                            return None;
-                        }
-                    };
-                let event_id = match serde_json::from_value::<OwnedEventId>(
-                    ev.get("event_id")
-                        .unwrap_or(&serde_json::Value::Null)
-                        .clone(),
-                ) {
-                    Ok(x) => x,
-                    Err(e) => {
-                        if i == 1 {
-                            println!("Event 1 Failed at event_id: {}", e);
-                        }
-                        return None;
-                    }
-                };
-                let room_id_obj = match serde_json::from_value::<OwnedRoomId>(
-                    ev.get("room_id")
-                        .unwrap_or(&serde_json::Value::Null)
-                        .clone(),
-                ) {
-                    Ok(x) => x,
-                    Err(e) => {
-                        if i == 1 {
-                            println!("Event 1 Failed at room_id: {}", e);
-                        }
-                        return None;
-                    }
-                };
-                let sender = match serde_json::from_value::<OwnedUserId>(
-                    ev.get("sender").unwrap_or(&serde_json::Value::Null).clone(),
-                ) {
-                    Ok(x) => x,
-                    Err(e) => {
-                        if i <= 3 {
-                            println!("Event {} Failed at sender: {}", i, e);
-                        }
-                        return None;
-                    }
-                };
-                let event_type = match serde_json::from_value::<TimelineEventType>(
-                    ev.get("type").unwrap_or(&serde_json::Value::Null).clone(),
-                ) {
-                    Ok(x) => x,
-                    Err(e) => {
-                        if i == 1 {
-                            println!("Event 1 Failed at type: {}", e);
-                        }
-                        return None;
-                    }
-                };
-                let prev_events: Vec<OwnedEventId> = serde_json::from_value(
-                    ev.get("prev_events")
-                        .unwrap_or(&serde_json::Value::Array(vec![]))
-                        .clone(),
-                )
-                .unwrap_or_default();
-                let auth_events: Vec<OwnedEventId> = serde_json::from_value(
-                    ev.get("auth_events")
-                        .unwrap_or(&serde_json::Value::Array(vec![]))
-                        .clone(),
-                )
-                .unwrap_or_default();
+                let content = ev.get("content").cloned().unwrap_or(serde_json::Value::Null);
+                let event_id = ev.get("event_id")?.as_str()?.to_string();
+                let room_id = ev.get("room_id")?.as_str()?.to_string();
+                let sender = ev.get("sender")?.as_str()?.to_string();
+                let event_type = ev.get("type")?.as_str()?.to_string();
+                
+                let prev_events: Vec<String> = ev.get("prev_events")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                    .unwrap_or_default();
+                
+                let auth_events: Vec<String> = ev.get("auth_events")
+                    .and_then(|v| v.as_array())
+                    .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                    .unwrap_or_default();
 
                 Some(GuestEvent {
                     event,
                     content,
                     event_id,
-                    room_id: room_id_obj,
+                    room_id,
                     sender,
                     event_type,
                     prev_events,
@@ -258,7 +161,7 @@ fn main() {
     );
 
     let key_cache_path = format!("{}.keys.json", fixture_path_str);
-    let mut key_cache: HashMap<String, String> = if std::path::Path::new(&key_cache_path).exists() {
+    let key_cache: HashMap<String, String> = if std::path::Path::new(&key_cache_path).exists() {
         let content = std::fs::read_to_string(&key_cache_path).unwrap();
         serde_json::from_str(&content).unwrap_or_default()
     } else {
@@ -302,8 +205,8 @@ fn main() {
                             if let Some(key_base64) = key_info.get("key").and_then(|k| k.as_str()) {
                                 // Convert base64 to hex for our simple cache
                                 use base64::Engine;
-                                if let Ok(bytes) =
-                                    base64::engine::general_purpose::STANDARD.decode(key_base64)
+                                if let Ok(bytes) = base64::engine::general_purpose::STANDARD
+                                    .decode(key_base64)
                                 {
                                     return Some((server, hex::encode(bytes)));
                                 }
@@ -368,10 +271,10 @@ fn main() {
 
     let skipped = total_raw_len - events.len();
     if skipped > 0 {
-        println!("> Notice: Skipped {} ill-formed or legacy events that violate Ruma specs (e.g. >255 byte constraints)", skipped);
+        println!("> Notice: Skipped {} ill-formed or legacy events", skipped);
     }
     println!(
-        "> Successfully mapped exactly {} Matrix Events into Ruma ZK hints!",
+        "> Successfully mapped exactly {} Matrix Events into Jolt hints!",
         events.len()
     );
 
@@ -385,14 +288,10 @@ fn main() {
     let mut conflicted_events = HashMap::new();
     for guest_ev in &events {
         let lean_ev = LeanEvent {
-            event_id: guest_ev.event_id.to_string(),
+            event_id: guest_ev.event_id.clone(),
             power_level: 0, // Simplified for demo
-            origin_server_ts: guest_ev.origin_server_ts().0.into(),
-            prev_events: guest_ev
-                .prev_events
-                .iter()
-                .map(|id| id.to_string())
-                .collect(),
+            origin_server_ts: guest_ev.origin_server_ts(),
+            prev_events: guest_ev.prev_events.clone(),
             depth: 0, // Simplified for demo
         };
         conflicted_events.insert(lean_ev.event_id.clone(), lean_ev);
@@ -403,14 +302,13 @@ fn main() {
     // Build the resolved state map based on the sorted order (Last-Writer-Wins for conflicts)
     let mut resolved_state = BTreeMap::new();
     for id in sorted_ids {
-        if let Some(ev) = event_map.get(&OwnedEventId::try_from(id).unwrap()) {
+        if let Some(ev) = event_map.get(&id) {
             let key = (
-                ev.event_type.to_string(),
+                ev.event_type.clone(),
                 ev.event
                     .get("state_key")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
                     .to_string(),
             );
             resolved_state.insert(key, ev.event_id.clone());
@@ -423,7 +321,7 @@ fn main() {
     for ((event_type, state_key), id) in &resolved_state {
         hasher.update(event_type.as_bytes());
         hasher.update(state_key.as_bytes());
-        hasher.update(id.as_str().as_bytes());
+        hasher.update(id.as_bytes());
     }
     let expected_hash: [u8; 32] = hasher.finalize().into();
 
@@ -449,7 +347,7 @@ fn main() {
 
         let mut parents = Vec::new();
         for prev in &event.prev_events {
-            parents.push(prev.as_str().to_string());
+            parents.push(prev.to_string());
         }
         if parents.is_empty() {
             parents.push(last_coord.to_string());
@@ -481,9 +379,12 @@ fn main() {
         println!("Generating Jolt Proof for Matrix State Resolution...");
         if is_unoptimized {
             println!("> Mode: UNOPTIMIZED (Full Spec State Resolution)");
-            let (cp, pp, _vp) = zk_matrix_join_guest_unoptimized::preprocess();
-            let input = zk_matrix_join_guest_unoptimized::DAGMergeInput {
-                room_version: RoomVersionId::V10,
+            let mut cp = Program::new("src/guest-unoptimized");
+            let sp = preprocess_shared_resolve_full_spec(&mut cp).expect("shared preprocess failed");
+            let pp = preprocess_prover_resolve_full_spec(sp);
+            
+            let guest_input = zk_matrix_join_guest_unoptimized::DAGMergeInput {
+                room_version: "10".to_string(),
                 event_map: event_map
                     .into_iter()
                     .map(|(id, ev)| {
@@ -491,7 +392,7 @@ fn main() {
                             id,
                             zk_matrix_join_guest_unoptimized::GuestEvent {
                                 event: ev.event,
-                                content: ev.content,
+                                content: serde_json::to_vec(&ev.content).unwrap(),
                                 event_id: ev.event_id,
                                 room_id: ev.room_id,
                                 sender: ev.sender,
@@ -506,7 +407,10 @@ fn main() {
                     })
                     .collect(),
             };
-            let (output, _proof, _commitments) = zk_matrix_join_guest_unoptimized::prove_resolve_full_spec(&cp, pp, input);
+            let mut input_bytes = Vec::new();
+            ciborium::into_writer(&guest_input, &mut input_bytes).unwrap();
+
+            let (output, _proof, _commitments) = prove_resolve_full_spec(&cp, pp, input_bytes);
             println!("✓ Jolt Proof Generated Successfully!");
             println!(
                 "Matrix Resolved State Hash (Journal): {:?}",
@@ -515,8 +419,10 @@ fn main() {
             println!("Events Verified in Proof: {}", output.event_count);
         } else {
             println!("> Mode: OPTIMIZED (Topological Reducer)");
-            let (cp, pp, _vp) = zk_matrix_join_guest::preprocess();
-            let (output, _proof, _commitments) = zk_matrix_join_guest::prove_verify_topology(
+            let mut cp = Program::new("src/guest");
+            let sp = preprocess_shared_verify_topology(&mut cp).expect("shared preprocess failed");
+            let pp = preprocess_prover_verify_topology(sp);
+            let (output, _proof, _commitments) = prove_verify_topology(
                 &cp,
                 pp,
                 edges,
@@ -533,8 +439,8 @@ fn main() {
     } else {
         println!("Simulating Jolt Execution for Matrix State Resolution...");
         if is_unoptimized {
-            let input = zk_matrix_join_guest_unoptimized::DAGMergeInput {
-                room_version: RoomVersionId::V10,
+            let guest_input = zk_matrix_join_guest_unoptimized::DAGMergeInput {
+                room_version: "10".to_string(),
                 event_map: event_map
                     .into_iter()
                     .map(|(id, ev)| {
@@ -542,7 +448,7 @@ fn main() {
                             id,
                             zk_matrix_join_guest_unoptimized::GuestEvent {
                                 event: ev.event,
-                                content: ev.content,
+                                content: serde_json::to_vec(&ev.content).unwrap(),
                                 event_id: ev.event_id,
                                 room_id: ev.room_id,
                                 sender: ev.sender,
@@ -557,7 +463,10 @@ fn main() {
                     })
                     .collect(),
             };
-            let output = zk_matrix_join_guest_unoptimized::resolve_full_spec(input);
+            let mut input_bytes = Vec::new();
+            ciborium::into_writer(&guest_input, &mut input_bytes).unwrap();
+
+            let output = resolve_full_spec(input_bytes);
             println!("--------------------------------------------------");
             println!("✓ Verifiable Simulation Complete!");
             println!(
@@ -566,8 +475,7 @@ fn main() {
             );
             println!("Events Verified: {}", output.event_count);
         } else {
-            let output =
-                zk_matrix_join_guest::verify_topology(edges, expected_hash, events.len() as u32);
+            let output = verify_topology(edges, expected_hash, events.len() as u32);
             println!("--------------------------------------------------");
             println!("✓ Verifiable Simulation Complete!");
             println!(

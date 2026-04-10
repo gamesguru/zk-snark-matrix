@@ -49,19 +49,11 @@ benchmark-batch: ##H Run Simulation with Concise DSL Fixtures
 	BATCH_FIXTURE=demo $(CARGO) run --release --bin zk-matrix-join-host
 
 .PHONY: prove
-prove: ##H Generate full SP1 STARK Proof
-	@echo "Generating Pure STARK Proof..."
-	SHARD_SIZE=1048576 SHARD_BATCH_SIZE=1 SP1_PROVE=1 RUST_LOG=info $(CARGO) run --release --bin zk-matrix-join-host
+prove: ##H Generate full Jolt STARK Proof
+	@echo "Generating Jolt STARK Proof..."
+	JOLT_PROVE=1 RUST_LOG=info $(CARGO) run --release --bin zk-matrix-join-host
 
 .PHONY: prove-fast
-prove-fast: ##H Run the hyper-optimized 10k Math Graph Benchmark (No SP1 VM)
-	@echo "Executing Pure Math Topological Benchmark..."
-	$(CARGO) run --release -p pure-topological-prover
-
-.PHONY: prove-lite
-prove-lite: ##H Generate full SP1 Groth16 Proof for WebAssembly
-	@echo "Generating Groth16 Proof for WASM..."
-	SHARD_SIZE=1048576 SHARD_BATCH_SIZE=1 SP1_PROVE=1 SP1_GROTH16=true RUST_LOG=info MATRIX_FIXTURE_PATH=res/ruma_bootstrap_events.json $(CARGO) run --release --bin zk-matrix-join-host
 
 .PHONY: wasm
 wasm: ##H Build the WebAssembly light-client Verifier
@@ -83,8 +75,8 @@ test: ##H Run fast Native Resolution tests (<1s)
 	$(CARGO) test -p zk-matrix-join-host -- --nocapture
 
 .PHONY: test-zk
-test-zk: ##H Run the full ZKVM Parity Simulation (Takes several minutes)
-	@echo "Running Deep ZKVM Parity Simulation..."
+test-zk: ##H Run the full Jolt Parity Simulation
+	@echo "Running Deep Jolt Parity Simulation..."
 	RUST_LOG=info RAYON_NUM_THREADS=1 $(CARGO) test --release -p zk-matrix-join-host -- --ignored --nocapture --test-threads=1
 
 .PHONY: setup
@@ -112,22 +104,14 @@ cpu-info: ##H Print CPU info relevant to native target-cpu
 	@grep -m1 'flags' /proc/cpuinfo 2>/dev/null | tr ' ' '\n' | grep -E 'avx|sse|aes|bmi|fma|popcnt|lzcnt|sha|pclmul' | sort
 	@echo "=== GCC Version ==="
 	@gcc --version | head -n 1 || true
-	@echo "=== G++ / C++ Toolchain ==="
-	@g++ --version | head -n 1 || true
-	@echo "=== Clang / LLVM ==="
-	@clang --version | head -n 1 || true
-	@echo "=== GLIBC Version ==="
-	@ldd --version | head -n 1 || true
 	@echo "=== GNU Make Header ==="
 	@make --version | head -n 1 || true
 	@echo "=== Python Version ==="
 	@python3 --version || true
-	@echo "=== Kernel Info ==="
-	@uname -srv || true
 	@echo "=== Rust Toolchains ==="
 	@rustup show || true
-	@echo "=== SP1 Toolchain ==="
-	@cargo prove --version || true
+	@echo "=== Jolt VM Toolchain ==="
+	@cargo jolt --version 2>/dev/null || echo "Jolt CLI not found"
 
 
 LINT_LOCS_PY ?= $(shell git ls-files '*.py')
@@ -152,7 +136,7 @@ coverage: ##H Run workspace code coverage and generate HTML report
 	@echo "Running focused workspace code coverage..."
 	$(CARGO) tarpaulin --out Html \
 		--output-dir .tmp/coverage \
-		--exclude-files "sp1/*" "**/target/*" \
+		--exclude-files "**/target/*" \
 		--ignore-panics \
 		--ignore-tests \
 		--skip-clean
@@ -162,7 +146,7 @@ coverage-lean: ##H Run focused code coverage for the ruma-lean library
 	@echo "Running focused code coverage for ruma-lean..."
 	$(CARGO) tarpaulin -p ruma-lean --out Html \
 		--output-dir .tmp/coverage-lean \
-		--exclude-files "sp1/*" "src/*" "**/target/*" \
+		--exclude-files "src/*" "**/target/*" \
 		--ignore-panics \
 		--ignore-tests \
 		--skip-clean
@@ -179,5 +163,5 @@ clean: ##H Clean up cache and optionally build artifacts
 # Messes up vim/sublime syntax highlighting, so it's at the end!
 .PHONY: help
 help: ##H Show this help, list available targets
-	@grep -hE '^[a-zA-Z0-9_\/-]+:.*?##H .*$$' $(MAKEFILE_LIST) \
-                | awk 'BEGIN {FS = ":.*?##H "}; {printf "$(STYLE_CYAN)%-20s$(STYLE_RESET) %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z0-9_\/\-]+:.*?##H .*$$' $(MAKEFILE_LIST) \
+		        | awk 'BEGIN {FS = ":.*?##H "}; {printf "$(STYLE_CYAN)%%-20s$(STYLE_RESET) %%s\n", $$1, $$2}'

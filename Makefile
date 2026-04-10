@@ -9,17 +9,6 @@ ifneq (,$(wildcard ./.env))
     include .env
 endif
 
-# Clean quotes from variables to avoid "makefile things"
-MATRIX_TOKEN := $(subst ",,$(subst ',,$(MATRIX_TOKEN)))
-MATRIX_HOMESERVER := $(subst ",,$(subst ',,$(MATRIX_HOMESERVER)))
-MATRIX_ROOM_ID := $(subst ",,$(subst ',,$(MATRIX_ROOM_ID)))
-
-export RUST_BACKTRACE ?= 1
-export
-
-STYLE_CYAN := \033[36m
-STYLE_RESET := \033[0m
-
 .DEFAULT_GOAL := help
 
 .PHONY: all
@@ -158,15 +147,6 @@ coverage: ##H Run workspace code coverage and generate HTML report
 		--ignore-tests \
 		--skip-clean
 
-.PHONY: coverage-lean
-coverage-lean: ##H Run focused code coverage for the ruma-lean library
-	@echo "Running focused code coverage for ruma-lean..."
-	$(CARGO) tarpaulin -p ruma-lean --out Html \
-		--output-dir .tmp/coverage-lean \
-		--exclude-files "src/*" "**/target/*" \
-		--ignore-panics \
-		--ignore-tests \
-		--skip-clean
 .PHONY: clean
 clean: ##H Clean up cache and optionally build artifacts
 	@echo "Cleaning up..."
@@ -176,6 +156,17 @@ clean: ##H Clean up cache and optionally build artifacts
 	rm -rf .tmp/coverage .tmp/coverage-lean
 # 	$(CARGO) clean
 
+
+# Clean quotes from variables to avoid "makefile things"
+MATRIX_TOKEN := $(subst ",,$(subst ',,$(MATRIX_TOKEN)))
+MATRIX_HOMESERVER := $(subst ",,$(subst ',,$(MATRIX_HOMESERVER)))
+MATRIX_ROOM_ID := $(subst ",,$(subst ',,$(MATRIX_ROOM_ID)))
+
+export RUST_BACKTRACE ?= 1
+export
+
+STYLE_CYAN := \033[36m
+STYLE_RESET := \033[0m
 
 # Messes up vim/sublime syntax highlighting, so it's at the end!
 .PHONY: help

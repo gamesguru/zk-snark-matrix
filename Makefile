@@ -22,37 +22,37 @@ build: ##H Build the Rust project
 .PHONY: install
 install: ##H Install the ruma-zk binary globally via cargo
 	@echo "Installing ruma-zk..."
-	$(CARGO) install --path ruma-zk --force
+	$(CARGO) install --path . --force
 
 .PHONY: demo
 demo: ##H Run the ZK-Matrix-Join Simulation (Demo)
 	@echo "Running ZK-Matrix-Join Demo..."
-	$(CARGO) run --release --bin ruma-zk -- demo --input res/benchmark_1k.json
+	$(CARGO) run --release -- demo --input res/benchmark_1k.json
 
 .PHONY: demo-lite
 demo-lite: ##H Run Simulation with Tiny 5-Event Graph
 	@echo "Running ZK-Matrix-Join Demo (Lite)..."
-	$(CARGO) run --release --bin ruma-zk -- demo --input res/ruma_bootstrap_events.json
+	$(CARGO) run --release -- demo --input res/ruma_bootstrap_events.json
 
 .PHONY: prove
 prove: ##H Generate full Jolt STARK Proof
 	@echo "Generating Jolt STARK Proof"
-	RUST_LOG=info $(CARGO) run --release --bin ruma-zk -- prove --input res/benchmark_1k.json
+	RUST_LOG=info $(CARGO) run --release -- prove --input res/benchmark_1k.json
 
 .PHONY: verify
 verify: ##H Verify an existing Jolt STARK Proof
 	@echo "Verifying Jolt STARK Proof"
-	$(CARGO) run --release --bin ruma-zk -- verify
+	$(CARGO) run --release -- verify
 
 .PHONY: publish
 publish: ##H Preview package file list and simulate a dry-run publish for ruma-zk
 	@echo "Previewing packaged files for ruma-zk"
 	@echo "-----------------------------------"
-	cd ruma-zk && $(CARGO) package --list --allow-dirty
+	$(CARGO) package --list --allow-dirty
 	@echo ""
 	@echo "Simulating publish for ruma-zk (--dry-run)"
 	@echo "-----------------------------------"
-	cd ruma-zk && $(CARGO) publish --dry-run --allow-dirty
+	$(CARGO) publish --dry-run --allow-dirty
 
 .PHONY: wasm
 wasm: ##H Build the WebAssembly light-client Verifier
@@ -71,14 +71,14 @@ web-demo: ##H Run a local web server to test the WASM UI
 .PHONY: test
 test: ##H Run fast Native Resolution tests (<1s)
 	@echo "Running Fast Native Tests"
-	$(CARGO) test -p ruma-zk -- --nocapture
+	$(CARGO) test -- --nocapture
 	@echo "Running ruma-lean formal parity tests..."
 	$(CARGO) test -p ruma-lean
 
 .PHONY: test-zk
 test-zk: ##H Run the full Jolt Parity Simulation
 	@echo "Running Deep Jolt Parity Simulation"
-	RUST_LOG=info RAYON_NUM_THREADS=1 $(CARGO) test --release -p ruma-zk -- --ignored --nocapture --test-threads=1
+	RUST_LOG=info RAYON_NUM_THREADS=1 $(CARGO) test --release -- --ignored --nocapture --test-threads=1
 
 .PHONY: setup
 setup: ##H Combined: Fetch real Matrix data and Ruma state resolution fixtures

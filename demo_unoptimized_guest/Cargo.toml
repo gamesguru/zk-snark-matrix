@@ -3,13 +3,6 @@ name = "ruma_zk_guest_unoptimized"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-path = "src/lib.rs"
-
-[[bin]]
-name = "ruma_zk_guest_unoptimized"
-path = "src/lib.rs"
-
 [dependencies]
 ruma-lean = { version = "0.1.1", path = "../ruma-lean", default-features = false, features = ["alloc", "zkvm"] }
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }

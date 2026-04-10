@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #![cfg_attr(feature = "guest", no_std)]
-#![cfg_attr(feature = "guest", no_main)]
 #![forbid(unsafe_code)]
 #![allow(unexpected_cfgs)]
 

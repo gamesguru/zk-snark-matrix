@@ -98,8 +98,8 @@ pub struct DAGMergeOutput {
 
 mod fixtures;
 
-use zk_matrix_join_guest::*;
-use zk_matrix_join_guest_unoptimized::*;
+use ruma_zk_guest::*;
+use ruma_zk_guest_unoptimized::*;
 
 fn main() {
     let args = Cli::parse();
@@ -469,14 +469,14 @@ fn main() {
                         .expect("shared preprocess failed");
                     let pp = preprocess_prover_resolve_full_spec(sp);
 
-                    let guest_input = zk_matrix_join_guest_unoptimized::DAGMergeInput {
+                    let guest_input = ruma_zk_guest_unoptimized::DAGMergeInput {
                         room_version: "10".to_string(),
                         event_map: event_map
                             .into_iter()
                             .map(|(id, ev)| {
                                 (
                                     id,
-                                    zk_matrix_join_guest_unoptimized::GuestEvent {
+                                    ruma_zk_guest_unoptimized::GuestEvent {
                                         event: ev.event,
                                         content: serde_json::to_vec(&ev.content).unwrap(),
                                         event_id: ev.event_id,
@@ -531,14 +531,14 @@ fn main() {
             } else {
                 println!("Simulating Jolt Execution for Matrix State Resolution...");
                 if unoptimized {
-                    let guest_input = zk_matrix_join_guest_unoptimized::DAGMergeInput {
+                    let guest_input = ruma_zk_guest_unoptimized::DAGMergeInput {
                         room_version: "10".to_string(),
                         event_map: event_map
                             .into_iter()
                             .map(|(id, ev)| {
                                 (
                                     id,
-                                    zk_matrix_join_guest_unoptimized::GuestEvent {
+                                    ruma_zk_guest_unoptimized::GuestEvent {
                                         event: ev.event,
                                         content: serde_json::to_vec(&ev.content).unwrap(),
                                         event_id: ev.event_id,

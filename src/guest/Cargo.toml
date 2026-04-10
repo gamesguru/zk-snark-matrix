@@ -1,5 +1,5 @@
 [package]
-name = "zk-matrix-join-guest"
+name = "ruma-zk-guest"
 version = "0.1.0"
 edition = "2021"
 

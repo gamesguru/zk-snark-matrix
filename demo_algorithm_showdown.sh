@@ -18,12 +18,12 @@ echo "> Using Fixture: $FIXTURE"
 
 # 1. Run Optimized Pipeline
 echo "[1/2] Simulating OPTIMIZED Pipeline (Topological Reducer)..."
-OPT_OUT=$(cargo run --quiet --bin zk-matrix-join-host -- --input "$FIXTURE")
+OPT_OUT=$(cargo run --quiet --bin ruma-zk-host -- --input "$FIXTURE")
 OPT_HASH=$(echo "$OPT_OUT" | grep "Matrix Resolved State Hash" | awk '{print $NF}' | tr -d '"')
 
 # 2. Run Unoptimized Pipeline
 echo "[2/2] Simulating UNOPTIMIZED Pipeline (Full Spec State Res)..."
-UNOPT_OUT=$(cargo run --quiet --bin zk-matrix-join-host -- --input "$FIXTURE" --unoptimized)
+UNOPT_OUT=$(cargo run --quiet --bin ruma-zk-host -- --input "$FIXTURE" --unoptimized)
 UNOPT_HASH=$(echo "$UNOPT_OUT" | grep "Matrix Resolved State Hash" | awk '{print $NF}' | tr -d '"')
 
 echo ""

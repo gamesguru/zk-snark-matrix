@@ -2148,6 +2148,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "ruma-zk-guest"
+version = "0.1.0"
+dependencies = [
+ "ciborium",
+ "jolt-sdk",
+ "ruma-lean",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "ruma-zk-guest-unoptimized"
+version = "0.1.0"
+dependencies = [
+ "ciborium",
+ "hashbrown 0.14.5",
+ "jolt-sdk",
+ "ruma-lean",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "ruma-zk-host"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "bincode 1.3.3",
+ "ciborium",
+ "clap",
+ "ed25519-consensus",
+ "hex",
+ "jolt-sdk",
+ "rayon",
+ "reqwest",
+ "ruma-lean",
+ "ruma-zk-guest",
+ "ruma-zk-guest-unoptimized",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3551,52 +3597,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "zk-matrix-join-guest"
-version = "0.1.0"
-dependencies = [
- "ciborium",
- "jolt-sdk",
- "ruma-lean",
- "serde",
- "serde_json",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "zk-matrix-join-guest-unoptimized"
-version = "0.1.0"
-dependencies = [
- "ciborium",
- "hashbrown 0.14.5",
- "jolt-sdk",
- "ruma-lean",
- "serde",
- "serde_json",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "zk-matrix-join-host"
-version = "0.1.0"
-dependencies = [
- "base64",
- "bincode 1.3.3",
- "ciborium",
- "clap",
- "ed25519-consensus",
- "hex",
- "jolt-sdk",
- "rayon",
- "reqwest",
- "ruma-lean",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "zk-matrix-join-guest",
- "zk-matrix-join-guest-unoptimized",
 ]
 
 [[package]]

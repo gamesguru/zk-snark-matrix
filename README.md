@@ -111,7 +111,7 @@ You can configure the execution mode using environment variables:
 Example usage:
 
 ```bash
-JOLT_PROVE=1 cargo run --bin zk-matrix-join-host
+JOLT_PROVE=1 cargo run --bin ruma-zk-host
 ```
 
 ## Security & Memory Safety

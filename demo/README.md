@@ -11,7 +11,7 @@ A beefy server or prover node downloads the events, executes the Matrix State Re
 ```bash
 # Run the prover on 10,000 real Matrix events
 # This generates res/proof-with-io.json and res/vk_hash.txt
-cargo run --release --bin zk-matrix-join-host
+cargo run --release --bin ruma-zk-host
 ```
 
 ## 2. The Verifier (Instant & Trustless)
@@ -22,7 +22,7 @@ A light client, a browser, or another homeserver joining the network doesn't nee
 
 ```bash
 # Instantly verify the computation and extract the resolved state hash
-cargo run --release --bin zk-matrix-join-verify
+cargo run --release --bin ruma-zk-verify
 ```
 
 ### What happens during Verification?

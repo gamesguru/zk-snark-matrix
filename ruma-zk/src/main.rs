@@ -111,17 +111,16 @@ mod fixtures;
 use ruma_zk_guest::*;
 use ruma_zk_guest_unoptimized::*;
 
-#[allow(clippy::type_complexity)]
-fn prepare_execution(
-    input: Option<String>,
-    batch: Option<String>,
-) -> (
-    BTreeMap<String, GuestEvent>,
-    Vec<GuestEvent>,
-    [u8; 32],
-    Vec<(u32, u32)>,
-    String,
-) {
+#[derive(Debug)]
+pub struct ExecutionData {
+    pub event_map: BTreeMap<String, GuestEvent>,
+    pub events: Vec<GuestEvent>,
+    pub expected_hash: [u8; 32],
+    pub edges: Vec<(u32, u32)>,
+    pub fixture_path_str: String,
+}
+
+fn prepare_execution(input: Option<String>, batch: Option<String>) -> ExecutionData {
     let room_id = "!demo:example.com".to_string();
     let mut fixture_path_str = "res/custom".to_string();
     let total_raw_len;
@@ -452,7 +451,13 @@ fn prepare_execution(
         last_coord = target_coord;
     }
 
-    (event_map, events, expected_hash, edges, fixture_path_str)
+    ExecutionData {
+        event_map,
+        events,
+        expected_hash,
+        edges,
+        fixture_path_str,
+    }
 }
 
 fn main() {
@@ -467,14 +472,14 @@ fn main() {
             println!("* Starting ZK-Matrix-Join Jolt Demo (SIMULATE)...");
             println!("--------------------------------------------------");
 
-            let (event_map, events, expected_hash, edges, _fixture_path_str) =
-                prepare_execution(input, batch);
+            let data = prepare_execution(input, batch);
 
             println!("Simulating Jolt Execution for Matrix State Resolution...");
             if unoptimized {
                 let guest_input = ruma_zk_guest_unoptimized::DAGMergeInput {
                     room_version: "10".to_string(),
-                    event_map: event_map
+                    event_map: data
+                        .event_map
                         .into_iter()
                         .map(|(id, ev)| {
                             (
@@ -510,7 +515,8 @@ fn main() {
                 println!("RISC-V CPU Cycles Used: ~42,800,000 (Estimated Unoptimized)");
                 println!("  [Note: Run with 'jolt' CLI installed for cycle-accurate analysis]");
             } else {
-                let output = verify_topology(edges, expected_hash, events.len() as u32);
+                let output =
+                    verify_topology(data.edges, data.expected_hash, data.events.len() as u32);
                 println!("--------------------------------------------------");
                 println!("✓ Verifiable Simulation Complete!");
                 println!(
@@ -531,8 +537,7 @@ fn main() {
             println!("* Starting ZK-Matrix-Join Jolt Demo (PROVE)...");
             println!("--------------------------------------------------");
 
-            let (event_map, events, expected_hash, edges, _fixture_path_str) =
-                prepare_execution(input, batch);
+            let data = prepare_execution(input, batch);
 
             use jolt_sdk::Serializable; // Required for save_to_file
 
@@ -546,7 +551,8 @@ fn main() {
 
                 let guest_input = ruma_zk_guest_unoptimized::DAGMergeInput {
                     room_version: "10".to_string(),
-                    event_map: event_map
+                    event_map: data
+                        .event_map
                         .into_iter()
                         .map(|(id, ev)| {
                             (
@@ -589,8 +595,13 @@ fn main() {
                 let sp =
                     preprocess_shared_verify_topology(&mut cp).expect("shared preprocess failed");
                 let pp = preprocess_prover_verify_topology(sp);
-                let (output, proof, _io_device) =
-                    prove_verify_topology(&cp, pp, edges, expected_hash, events.len() as u32);
+                let (output, proof, _io_device) = prove_verify_topology(
+                    &cp,
+                    pp,
+                    data.edges,
+                    data.expected_hash,
+                    data.events.len() as u32,
+                );
                 println!("✓ Jolt Proof Generated Successfully!");
                 println!(
                     "Matrix Resolved State Hash (Journal): {:?}",

@@ -16,37 +16,37 @@ all: build setup format lint test ##H Build, setup data, format, lint, and run t
 
 .PHONY: build
 build: ##H Build the Rust project
-	@echo "Building ZK-Matrix-Join..."
-	$(CARGO) build
+	@echo "Building ZK-Matrix-Join"
+	$(CARGO) build --release
 
 .PHONY: demo
 demo: ##H Run the ZK-Matrix-Join Simulation (Demo)
-	@echo "Running ZK-Matrix-Join Demo..."
+	@echo "Running ZK-Matrix-Join Demo"
 	$(CARGO) run --release --bin ruma-zk -- demo
 
 .PHONY: benchmark-lite
 benchmark-lite: ##H Run Simulation with Tiny 5-Event Graph
-	@echo "Running ZK-Matrix-Join Benchmark (Lite)..."
+	@echo "Running ZK-Matrix-Join Benchmark (Lite)"
 	$(CARGO) run --release --bin ruma-zk -- demo --input res/ruma_bootstrap_events.json
 
 .PHONY: benchmark-batch
 benchmark-batch: ##H Run Simulation with Concise DSL Fixtures
-	@echo "Running ZK-Matrix-Join Benchmark (Batch DSL)..."
+	@echo "Running ZK-Matrix-Join Benchmark (Batch DSL)"
 	$(CARGO) run --release --bin ruma-zk -- demo --batch demo
 
 .PHONY: prove
 prove: ##H Generate full Jolt STARK Proof
-	@echo "Generating Jolt STARK Proof..."
+	@echo "Generating Jolt STARK Proof"
 	RUST_LOG=info $(CARGO) run --release --bin ruma-zk -- prove
 
 .PHONY: verify
 verify: ##H Verify an existing Jolt STARK Proof
-	@echo "Verifying Jolt STARK Proof..."
+	@echo "Verifying Jolt STARK Proof"
 	$(CARGO) run --release --bin ruma-zk -- verify
 
 .PHONY: publish
 publish: ##H Preview package file list and simulate a dry-run publish for ruma-zk
-	@echo "Previewing packaged files for ruma-zk..."
+	@echo "Previewing packaged files for ruma-zk"
 	@echo "-----------------------------------"
 	cd ruma-zk && $(CARGO) package --list --allow-dirty
 	@echo ""
@@ -56,7 +56,7 @@ publish: ##H Preview package file list and simulate a dry-run publish for ruma-z
 
 .PHONY: wasm
 wasm: ##H Build the WebAssembly light-client Verifier
-	@echo "Compiling WASM bindings..."
+	@echo "Compiling WASM bindings"
 	cd ruma-zk-wasm && wasm-pack build --target web
 
 .PHONY: web-demo
@@ -70,21 +70,21 @@ web-demo: ##H Run a local web server to test the WASM UI
 
 .PHONY: test
 test: ##H Run fast Native Resolution tests (<1s)
-	@echo "Running Fast Native Tests..."
+	@echo "Running Fast Native Tests"
 	$(CARGO) test -p ruma-zk -- --nocapture
-	@echo "Running ruma-lean formal parity tests..."
+	@echo "Running ruma-lean formal parity tests"
 	$(CARGO) test -p ruma-lean
 
 .PHONY: test-zk
 test-zk: ##H Run the full Jolt Parity Simulation
-	@echo "Running Deep Jolt Parity Simulation..."
+	@echo "Running Deep Jolt Parity Simulation"
 	RUST_LOG=info RAYON_NUM_THREADS=1 $(CARGO) test --release -p ruma-zk -- --ignored --nocapture --test-threads=1
 
 .PHONY: setup
 setup: ##H Combined: Fetch real Matrix data and Ruma state resolution fixtures
-	@echo "Setting up project data and fixtures..."
+	@echo "Setting up project data and fixtures"
 	@if [ -n "$$MATRIX_TOKEN" ]; then \
-		echo "Fetching real Matrix state data from $$MATRIX_HOMESERVER..."; \
+		echo "Fetching real Matrix state data from $$MATRIX_HOMESERVER"; \
 		$(PYTHON) scripts/fetch_matrix_state.py; \
 	else \
 		echo "Skipping real Matrix fetch (MATRIX_TOKEN not set)."; \
@@ -130,13 +130,13 @@ lint: ##H Run clippy to lint the codebase and check compilation
 	$(CARGO) check
 	$(CARGO) clippy --all-targets --all-features -- -D warnings
 	@if [ -n "$(VERBOSE)" ]; then \
-		echo "Running ZK Security Scanner (vuln-002-VeilCash)..."; \
+		echo "Running ZK Security Scanner (vuln-002-VeilCash)"; \
 		python3 scripts/detect_vuln_002.py; \
 	fi
 
 .PHONY: coverage
 coverage: ##H Run workspace code coverage and generate HTML report
-	@echo "Running focused workspace code coverage..."
+	@echo "Running focused workspace code coverage"
 	$(CARGO) tarpaulin --out Html \
 		--output-dir .tmp/coverage \
 		--exclude-files "**/target/*" \
@@ -146,7 +146,7 @@ coverage: ##H Run workspace code coverage and generate HTML report
 
 .PHONY: coverage-lean
 coverage-lean: ##H Run focused code coverage for the ruma-lean library
-	@echo "Running focused code coverage for ruma-lean..."
+	@echo "Running focused code coverage for ruma-lean"
 	$(CARGO) tarpaulin -p ruma-lean --out Html \
 		--output-dir .tmp/coverage-lean \
 		--exclude-files "src/*" "**/target/*" \
@@ -156,7 +156,7 @@ coverage-lean: ##H Run focused code coverage for the ruma-lean library
 
 .PHONY: clean
 clean: ##H Clean up cache and optionally build artifacts
-	@echo "Cleaning up..."
+	@echo "Cleaning up"
 	find . -name .mypy_cache -exec rm -rf {} +;
 	find . -name .ruff_cache -exec rm -rf {} +;
 	find . -name .pytest_cache -exec rm -rf {} +;

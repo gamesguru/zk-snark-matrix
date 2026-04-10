@@ -56,8 +56,8 @@ graph TD
 
 Built on **Jolt RV64IMAC**, allowing formally verified Rust libraries (`ruma-lean`) to run in ZK.
 
-- **`ruma-zk/` (The Prover):** Orchestrates state res and parallelizes the Jolt Prover.
-- **`ruma-zk/guest/` (The zkVM):** Formally verified logic that runs inside Jolt, proving topological compliance and state transitions.
+- **`ruma-zk` (The Prover):** Root-level facade that orchestrates state res and parallelizes the Jolt Prover.
+- **`ruma_zk_guest/` (The zkVM):** Formally verified logic that runs inside Jolt, proving topological compliance and state transitions.
 - **`ruma-zk-wasm/` (The Verifier):** Exposes proof verification to WebAssembly.
 
 ## CLI Usage

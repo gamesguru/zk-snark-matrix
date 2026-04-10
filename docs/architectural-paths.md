@@ -8,7 +8,7 @@ _Using standard Jolt RV64IMAC to execute the Ruma resolution logic directly._
 
 - **Pros**: Direct reuse of `ruma-lean`. No custom cryptography needed.
 - **Cons**: High cycle counts for massive DAGs due to $O(N \log N)$ sorting complexity.
-- **Status**: Supported as `EXECUTE_UNOPTIMIZED=1`. Useful for verifying smaller rooms or as a ground-truth reference.
+- **Status**: Supported as `--unoptimized`. Useful for verifying smaller rooms or as a ground-truth reference.
 
 ## Path B: Jolt Coprocessor (Topological Reducer)
 

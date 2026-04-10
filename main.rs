@@ -141,17 +141,30 @@ fn prepare_execution(input: Option<String>, limit: usize) -> ExecutionData {
         );
     }
 
-    let path: String = input
-        .or_else(|| std::env::var("MATRIX_FIXTURE_PATH").ok())
-        .expect("No Matrix fixture path provided. Use --input <PATH> or set the MATRIX_FIXTURE_PATH environment variable.");
-    let fixture_path_str = path.clone();
-
-    println!(
-        "> Loading raw Matrix State DAG from {} (Processing Limit: {})...",
-        path, limit
-    );
-    let file_content = std::fs::read_to_string(&path)
-        .expect("Failed to read JSON state file (try running the python fetcher!)");
+    let mut buffer = String::new();
+    let (file_content, fixture_path_str) = match input {
+        Some(path) => {
+            println!(
+                "> Loading raw Matrix State DAG from {} (Processing Limit: {})...",
+                path, limit
+            );
+            (
+                std::fs::read_to_string(&path).expect("Failed to read JSON state file"),
+                path,
+            )
+        }
+        None => {
+            println!(
+                "> Reading Matrix State DAG from STDIN (Processing Limit: {})...",
+                limit
+            );
+            use std::io::Read;
+            std::io::stdin()
+                .read_to_string(&mut buffer)
+                .expect("Failed to read JSON from STDIN");
+            (buffer, "stdin".to_string())
+        }
+    };
     let raw_events: Vec<serde_json::Value> = serde_json::from_str(&file_content).unwrap();
 
     let raw_len = raw_events.len();

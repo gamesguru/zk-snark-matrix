@@ -13,9 +13,9 @@ class BinaryHandler(BaseHTTPRequestHandler):
         input_json = self.rfile.read(content_length)
 
         # Spawn the ruma-zk binary
-        # We use '--input -' to tell ruma-zk to read the DAG from stdin
+        # It defaults to reading from STDIN if no --input is provided
         process = subprocess.run(
-            ["ruma-zk", "demo", "--input", "-"], input=input_json, capture_output=True
+            ["ruma-zk", "demo"], input=input_json, capture_output=True
         )
 
         # Return the result as an HTTP response

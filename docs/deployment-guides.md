@@ -68,9 +68,9 @@ class BinaryHandler(BaseHTTPRequestHandler):
         input_json = self.rfile.read(content_length)
 
         # Spawn the binary, pipe stdin/stdout
-        # Note: adjust arguments as needed (e.g., 'demo', '--input', '-')
+        # It defaults to reading from STDIN if no --input is provided
         process = subprocess.run(
-            ['ruma-zk', 'demo', '--input', '-'],
+            ['ruma-zk', 'demo'],
             input=input_json,
             capture_output=True
         )

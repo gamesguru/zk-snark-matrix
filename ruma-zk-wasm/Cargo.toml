@@ -2,6 +2,7 @@
 name = "ruma-zk-wasm"
 version = "0.1.0"
 edition = "2021"
+authors = ["Shane Jaroch <chown_tee@proton.me>"]
 description = "WebAssembly client for verifying ZK-Matrix-Join proofs trustlessly in the browser."
 repository = "https://github.com/gamesguru/ruma-zk"
 license-file = "LICENSE.txt"

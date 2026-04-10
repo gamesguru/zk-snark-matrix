@@ -2,6 +2,7 @@
 name = "ruma-zk"
 version = "0.1.0"
 edition = "2021"
+authors = ["Shane Jaroch <chown_tee@proton.me>"]
 description = "High-level API for generating and verifying Matrix State Resolution proofs using Jolt zkVM."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/gamesguru/ruma-zk"

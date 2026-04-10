@@ -7,10 +7,6 @@ edition = "2021"
 name = "zk-matrix-join-host"
 path = "main.rs"
 
-[[bin]]
-name = "debug-jolt"
-path = "debug_jolt.rs"
-
 [dependencies]
 jolt-sdk = { git = "https://github.com/a16z/jolt.git", features = ["host"] }
 clap = { version = "4.4", features = ["derive"] }

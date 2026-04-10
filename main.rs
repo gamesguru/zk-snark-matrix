@@ -114,14 +114,6 @@ impl GuestEvent {
             .and_then(|v| v.as_u64())
             .expect("missing or invalid origin_server_ts")
     }
-
-    fn state_key(&self) -> String {
-        self.event
-            .get("state_key")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string()
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -379,8 +371,6 @@ fn prepare_execution(input: Option<String>, limit: usize) -> ExecutionData {
     for guest_ev in &events {
         let lean_ev = LeanEvent {
             event_id: guest_ev.event_id.clone(),
-            event_type: guest_ev.event_type.clone(),
-            state_key: guest_ev.state_key(),
             power_level: 0, // Simplified for demo
             origin_server_ts: guest_ev.origin_server_ts(),
             prev_events: guest_ev.prev_events.clone(),

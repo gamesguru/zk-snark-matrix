@@ -32,7 +32,7 @@ build: ##H Build the Rust project
 
 .PHONY: install
 install: ##H Install the ruma-zk binary globally via cargo
-	@echo "Installing ruma-zk..."
+	@echo "Installing ruma-zk"
 	$(CARGO) install --path . --force
 
 .PHONY: setup
@@ -49,10 +49,10 @@ setup: ##H Fetch real Matrix data and Ruma state resolution fixtures
 
 .PHONY: setup-jolt
 setup-jolt: ##H Install Jolt CLI and RISC-V toolchain
-	@echo "Installing Jolt Guest Toolchain..."
+	@echo "Installing Jolt Guest Toolchain"
 	rustup target add riscv64imac-unknown-none-elf
 	@if ! cargo jolt --version >/dev/null 2>&1; then \
-		echo "Installing cargo-jolt from git..."; \
+		echo "Installing cargo-jolt from git"; \
 		$(CARGO) install --git https://github.com/a16z/jolt.git jolt; \
 	else \
 		echo "cargo-jolt is already installed."; \
@@ -113,15 +113,22 @@ endif
 
 .PHONY: build-guest
 build-guest: ##H Compile the RISC-V Guest ELFs
-	@echo "Compiling Jolt Guest ELFs..."
+	@echo "Compiling Jolt Guest ELFs"
 	@# Optimized Path
 	$(CARGO) build -p ruma_zk_guest --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
 	@# Unoptimized Path
 	$(CARGO) build -p ruma_zk_guest_unoptimized --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
+	@echo "Syncing ELFs to Jolt Target Directory (/tmp/jolt-guest-targets)"
+	@# Sync Optimized
+	mkdir -p /tmp/jolt-guest-targets/ruma_zk_guest-verify_topology/riscv64imac-unknown-none-elf/release/
+	cp target/riscv64imac-unknown-none-elf/release/ruma_zk_guest /tmp/jolt-guest-targets/ruma_zk_guest-verify_topology/riscv64imac-unknown-none-elf/release/ruma_zk_guest
+	@# Sync Unoptimized
+	mkdir -p /tmp/jolt-guest-targets/ruma_zk_guest_unoptimized-resolve_full_spec/riscv64imac-unknown-none-elf/release/
+	cp target/riscv64imac-unknown-none-elf/release/ruma_zk_guest_unoptimized /tmp/jolt-guest-targets/ruma_zk_guest_unoptimized-resolve_full_spec/riscv64imac-unknown-none-elf/release/ruma_zk_guest_unoptimized
 
 .PHONY: demo
 demo: ##H Run the CLI Simulation (TYPE=lite for 5-event graph)
-	@echo "Running ZK-Matrix-Join Demo (Input: $(DEMO_INPUT))..."
+	@echo "Running ZK-Matrix-Join Demo (Input: $(DEMO_INPUT))"
 	$(CARGO) run --release -- demo --input $(DEMO_INPUT)
 
 
@@ -156,9 +163,9 @@ verify: ##H Verify an existing Jolt STARK Proof
 
 .PHONY: publish
 publish: ##H Preview package file list and dry-run publish
-	@echo "Previewing packaged files..."
+	@echo "Previewing packaged files"
 	$(CARGO) package --list --allow-dirty
-	@echo "Simulating publish..."
+	@echo "Simulating publish"
 	$(CARGO) publish --dry-run --allow-dirty
 
 .PHONY: cpu-info

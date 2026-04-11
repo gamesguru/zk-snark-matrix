@@ -14,5 +14,6 @@ base64 = { version = "=0.21.7", default-features = false, features = ["alloc"] }
 jolt = { package = "jolt-sdk", version = "0.1.0", git = "https://github.com/a16z/jolt.git", default-features = false, features = ["guest-nostd"] }
 
 [features]
+default = ["guest"]
 guest = []
 host = ["jolt/host"]

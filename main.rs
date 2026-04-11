@@ -606,8 +606,13 @@ fn main() {
             println!("Generating Jolt Proof for Matrix State Resolution...");
             if unoptimized {
                 println!("> Mode: UNOPTIMIZED (Full Spec State Resolution)");
-                let guest_path = std::env::var("JOLT_GUEST_UNOPTIMIZED_PATH")
+                let guest_path_raw = std::env::var("JOLT_GUEST_UNOPTIMIZED_PATH")
                     .unwrap_or_else(|_| "./demo_unoptimized_guest".to_string());
+                let guest_path = std::fs::canonicalize(guest_path_raw)
+                    .expect("Failed to canonicalize guest path")
+                    .to_str()
+                    .unwrap()
+                    .to_string();
                 let mut cp = Program::new(&guest_path);
                 let sp = ruma_zk_guest_unoptimized::preprocess_shared_resolve_full_spec(&mut cp)
                     .expect("shared preprocess failed");
@@ -656,8 +661,13 @@ fn main() {
                     .expect("Failed to save proof");
             } else {
                 println!("> Mode: OPTIMIZED (Topological Reducer)");
-                let guest_path = std::env::var("JOLT_GUEST_OPTIMIZED_PATH")
+                let guest_path_raw = std::env::var("JOLT_GUEST_OPTIMIZED_PATH")
                     .unwrap_or_else(|_| "./ruma_zk_guest".to_string());
+                let guest_path = std::fs::canonicalize(guest_path_raw)
+                    .expect("Failed to canonicalize guest path")
+                    .to_str()
+                    .unwrap()
+                    .to_string();
                 let mut cp = Program::new(&guest_path);
                 let sp = ruma_zk_guest::preprocess_shared_verify_topology(&mut cp)
                     .expect("shared preprocess failed");
@@ -708,8 +718,13 @@ fn main() {
             println!("> Setting up Jolt verifier environment...");
 
             if unoptimized {
-                let guest_path = std::env::var("JOLT_GUEST_UNOPTIMIZED_PATH")
+                let guest_path_raw = std::env::var("JOLT_GUEST_UNOPTIMIZED_PATH")
                     .unwrap_or_else(|_| "./demo_unoptimized_guest".to_string());
+                let guest_path = std::fs::canonicalize(guest_path_raw)
+                    .expect("Failed to canonicalize guest path")
+                    .to_str()
+                    .unwrap()
+                    .to_string();
                 let mut cp = Program::new(&guest_path);
                 let sp = ruma_zk_guest_unoptimized::preprocess_shared_resolve_full_spec(&mut cp)
                     .expect("shared preprocess failed");
@@ -729,8 +744,13 @@ fn main() {
                 let _ = verify_fn;
                 println!("✓ PROOF STRUCTURE & VERIFIER CLOSURE READY!");
             } else {
-                let guest_path = std::env::var("JOLT_GUEST_OPTIMIZED_PATH")
+                let guest_path_raw = std::env::var("JOLT_GUEST_OPTIMIZED_PATH")
                     .unwrap_or_else(|_| "./ruma_zk_guest".to_string());
+                let guest_path = std::fs::canonicalize(guest_path_raw)
+                    .expect("Failed to canonicalize guest path")
+                    .to_str()
+                    .unwrap()
+                    .to_string();
                 let mut cp = Program::new(&guest_path);
                 let sp = ruma_zk_guest::preprocess_shared_verify_topology(&mut cp)
                     .expect("shared preprocess failed");

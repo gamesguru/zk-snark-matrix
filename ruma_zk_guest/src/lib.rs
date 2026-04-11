@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(feature = "guest", no_std)]
+#![cfg_attr(not(feature = "host"), no_std)]
 #![forbid(unsafe_code)]
 #![allow(unexpected_cfgs)]
 
-#[cfg(feature = "guest")]
+#[cfg(not(feature = "host"))]
+#[macro_use]
 extern crate alloc;
 
-#[cfg(feature = "guest")]
+#[cfg(not(feature = "host"))]
 use alloc::vec::Vec;
-#[cfg(not(feature = "guest"))]
+#[cfg(feature = "host")]
 use std::vec::Vec;
 
 use jolt::provable;

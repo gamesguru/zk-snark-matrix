@@ -672,7 +672,7 @@ dependencies = [
  "p3-symmetric",
  "rand 0.8.5",
  "rayon",
- "ruma-lean 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ruma-lean",
  "serde",
  "serde_json",
  "tiny-keccak",
@@ -2341,18 +2341,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ruma-lean"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "003f83366a2142e9a83c18fbd1b9630be28e65403f23891e91d9db2696b32d5f"
-dependencies = [
- "ed25519-consensus",
- "hashbrown 0.14.5",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "ruma-zk"
 version = "0.1.1"
 dependencies = [
@@ -2366,7 +2354,7 @@ dependencies = [
  "hex",
  "rayon",
  "reqwest",
- "ruma-lean 0.1.1",
+ "ruma-lean",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -2392,7 +2380,7 @@ dependencies = [
  "ciborium",
  "hex",
  "jolt-sdk",
- "ruma-lean 0.1.1",
+ "ruma-lean",
  "serde",
  "serde_json",
  "sha2 0.10.9",

@@ -2,7 +2,7 @@
 //! Optimized for cache locality via zero-allocation factoradic indexing and finite field arithmetic.
 
 use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use rand::Rng;
 use rayon::prelude::*;
@@ -41,13 +41,13 @@ pub fn matrix_topological_constraint(
     let _event_type = state[4];
 
     // Rule 1: Inactive nodes must be zeroed out (padding nodes in the Star Graph walk)
-    if is_active == BabyBear::from_canonical_u32(0) {
+    if is_active == BabyBear::new(0) {
         return is_active + state[1] + state[2] + current_pl + state[4];
     }
 
     // Rule 2: Genesis node must have PL 100
     if p1_idx == 0 {
-        return current_pl - BabyBear::from_canonical_u32(100);
+        return current_pl - BabyBear::new(100);
     }
 
     // Rule 3: Topological Compliance (Branch-and-Merge)
@@ -55,8 +55,8 @@ pub fn matrix_topological_constraint(
     let p1_state = neighbors[p1_idx - 1];
     let p1_pl = p1_state[3];
 
-    let p2_pl = if p2_idx == 0 {
-        BabyBear::from_canonical_u32(0)
+    let _p2_pl = if p2_idx == 0 {
+        BabyBear::new(0)
     } else {
         neighbors[p2_idx - 1][3]
     };
@@ -92,7 +92,7 @@ impl StarGraph {
 
         Self {
             n,
-            nodes: vec![[BabyBear::from_canonical_u32(0); STATE_WIDTH]; size],
+            nodes: vec![[BabyBear::new(0); STATE_WIDTH]; size],
             factorials,
         }
     }
@@ -144,17 +144,17 @@ impl StarGraph {
         C: Fn([BabyBear; STATE_WIDTH], &[[BabyBear; STATE_WIDTH]]) -> BabyBear + Sync,
     {
         let state = self.nodes[index];
-        if state[0] == BabyBear::from_canonical_u32(0) {
+        if state[0] == BabyBear::new(0) {
             return true;
         }
 
-        let mut neighbors = [[BabyBear::from_canonical_u32(0); STATE_WIDTH]; MAX_N];
+        let mut neighbors = [[BabyBear::new(0); STATE_WIDTH]; MAX_N];
         for i in 1..self.n {
             let neighbor_idx = self.get_neighbor_index(index, i);
             neighbors[i - 1] = self.nodes[neighbor_idx];
         }
 
-        constraint(state, &neighbors[..self.n - 1]) == BabyBear::from_canonical_u32(0)
+        constraint(state, &neighbors[..self.n - 1]) == BabyBear::new(0)
     }
 
     pub fn verify_entire_topology<C>(&self, constraint: C) -> bool
@@ -279,11 +279,11 @@ impl StarGraph {
         // 1. Genesis Node Propagation
         let mut walker_idx = 0;
         self.nodes[0] = [
-            BabyBear::from_canonical_u32(1),   // active
-            BabyBear::from_canonical_u32(0),   // p1
-            BabyBear::from_canonical_u32(0),   // p2
-            BabyBear::from_canonical_u32(100), // PL
-            BabyBear::from_canonical_u32(0),   // event_type
+            BabyBear::new(1),   // active
+            BabyBear::new(0),   // p1
+            BabyBear::new(0),   // p2
+            BabyBear::new(100), // PL
+            BabyBear::new(0),   // event_type
         ];
         visited.insert(0);
 
@@ -294,11 +294,11 @@ impl StarGraph {
                 let next_idx = self.get_neighbor_index(walker_idx, edge_idx);
                 if !visited.contains(&next_idx) {
                     self.nodes[next_idx] = [
-                        BabyBear::from_canonical_u32(1),
-                        BabyBear::from_canonical_u32(edge_idx as u32),
-                        BabyBear::from_canonical_u32(0),
-                        BabyBear::from_canonical_u32(ev.power_level as u32),
-                        BabyBear::from_canonical_u32(1),
+                        BabyBear::new(1),
+                        BabyBear::new(edge_idx as u32),
+                        BabyBear::new(0),
+                        BabyBear::new(ev.power_level as u32),
+                        BabyBear::new(1),
                     ];
                     visited.insert(next_idx);
                     walker_idx = next_idx;
@@ -316,6 +316,25 @@ impl StarGraph {
         }
         Ok(steps)
     }
+
+    fn get_path(&self, tree: &[Vec<[u8; 32]>], mut idx: usize) -> Vec<[u8; 32]> {
+        let mut path = Vec::new();
+        for layer in tree.iter().take(tree.len() - 1) {
+            let is_even = idx.is_multiple_of(2);
+            let sibling_idx = if is_even {
+                if idx + 1 < layer.len() {
+                    idx + 1
+                } else {
+                    idx
+                }
+            } else {
+                idx - 1
+            };
+            path.push(layer[sibling_idx]);
+            idx /= 2;
+        }
+        path
+    }
 }
 
 /// High-level entry point to resolve and prove Matrix state using the Topological AIR.
@@ -331,7 +350,7 @@ pub fn prove_matrix_resolution(events: Vec<MatrixEvent>, n: usize) -> Result<Raw
             prev_events: ev.prev_events.clone(),
             event_type: ev.event_type.clone(),
             state_key: ev.state_key.clone(),
-            content: "{}".to_string(),
+            content: serde_json::json!({}),
             depth: 0,
             power_level: ev.power_level as i64,
         };
@@ -379,7 +398,7 @@ impl StarGraph {
         let mut idx = opening.index;
         for sibling in &opening.path {
             let mut k = Keccak::v256();
-            let is_even = (idx % 2) == 0;
+            let is_even = idx.is_multiple_of(2);
             if is_even {
                 k.update(&current_hash);
                 k.update(sibling);

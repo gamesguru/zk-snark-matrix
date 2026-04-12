@@ -16,7 +16,7 @@
 
 use clap::Parser;
 use ctopology::{prove_matrix_resolution, StarGraph};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
@@ -144,7 +144,7 @@ fn main() {
             println!("* Starting ZK-Matrix-Join CTopology Demo (Topological AIR)...");
             println!("--------------------------------------------------");
 
-            let data = prepare_execution(input, limit);
+            let data = prepare_execution(input, Some(limit));
 
             println!("Prover: Invoking CTopology resolution and proof generation...");
             let start = Instant::now();
@@ -165,7 +165,7 @@ fn main() {
             limit,
             compression: _,
         } => {
-            let data = prepare_execution(input, limit);
+            let data = prepare_execution(input, Some(limit));
             println!("Generating CTopology Proof...");
             match prove_matrix_resolution(data.events, 10) {
                 Ok(proof) => {

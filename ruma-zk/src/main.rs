@@ -15,7 +15,7 @@
 #![forbid(unsafe_code)]
 
 use clap::Parser;
-use ruma_zk_topair::{prove_matrix_resolution, MatrixEvent, RawProof, StarGraph};
+use ruma_zk_topair::{prove_matrix_resolution, MatrixEvent, RawProof};
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -178,7 +178,7 @@ fn main() {
             println!("Verifying Merkle openings...");
             let mut all_ok = true;
             for opening in &proof.openings {
-                if !StarGraph::verify_opening(proof.root, opening) {
+                if !proof.verify_opening(opening) {
                     all_ok = false;
                     break;
                 }

@@ -36,7 +36,7 @@ clean: ##H Remove build artifacts
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Main target
+# Main targets
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .PHONY: lean
@@ -53,11 +53,15 @@ docs: ##H Generate Lean docs
 
 .PHONY: bench
 bench: ##H Run high-performance O(N) benchmark
-	cd ruma-zk-topair && cargo run --release
+	cargo run -p ruma-zk-topair --release
+
+.PHONY: wasm
+wasm: ##H Build WebAssembly package (JS + WASM)
+	cd ruma-zk-verifier && wasm-pack build --target web -- --features wasm
 
 .PHONY: proof-bench
 proof-bench: ##H Run topological prover benchmark
-	cd ruma-zk-topair && cargo run --release
+	cargo run -p ruma-zk-topair --release
 
 
 

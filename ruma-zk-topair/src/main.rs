@@ -108,7 +108,7 @@ fn main() {
     let start_verif_proof = Instant::now();
     let mut success = true;
     for opening in &proof.openings {
-        if !StarGraph::verify_opening(proof.root, opening) {
+        if !proof.verify_opening(opening) {
             success = false;
             break;
         }

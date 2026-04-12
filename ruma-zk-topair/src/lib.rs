@@ -6,71 +6,13 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use rand::Rng;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
+
+pub use ruma_zk_verifier::{
+    matrix_topological_constraint, MatrixEvent, Opening, RawProof, STATE_WIDTH,
+};
 
 pub const MAX_N: usize = 12;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MatrixEvent {
-    pub event_id: String,
-    pub event_type: String,
-    pub state_key: String,
-    pub prev_events: Vec<String>,
-    pub power_level: u64,
-}
-
-/// The number of field elements stored in each node (columns).
-/// [0] -> is_active (1 or 0)
-/// [1] -> parent_1_edge_idx (1 to n-1, 0 for genesis)
-/// [2] -> parent_2_edge_idx (1 to n-1, 0 if single parent)
-/// [3] -> current_pl (Matrix Power Level)
-/// [4] -> event_type_hash (Reduced identifier for the event type)
-pub const STATE_WIDTH: usize = 5;
-
-/// The canonical Topological Constraint for Matrix State Resolution v2.
-/// This matches the formal requirements in `ctopology/lean_src/`.
-pub fn matrix_topological_constraint(
-    state: [BabyBear; STATE_WIDTH],
-    neighbors: &[[BabyBear; STATE_WIDTH]],
-) -> BabyBear {
-    let is_active = state[0];
-    let p1_idx = state[1].as_canonical_u32() as usize;
-    let p2_idx = state[2].as_canonical_u32() as usize;
-    let current_pl = state[3];
-    let _event_type = state[4];
-
-    // Rule 1: Inactive nodes must be zeroed out (padding nodes in the Star Graph walk)
-    if is_active == BabyBear::new(0) {
-        return is_active + state[1] + state[2] + current_pl + state[4];
-    }
-
-    // Rule 2: Genesis node must have PL 100
-    if p1_idx == 0 {
-        return current_pl - BabyBear::new(100);
-    }
-
-    // Rule 3: Topological Compliance (Branch-and-Merge)
-    // The current PL must be consistent with its parents in the DAG.
-    let p1_state = neighbors[p1_idx - 1];
-    let p1_pl = p1_state[3];
-
-    let _p2_pl = if p2_idx == 0 {
-        BabyBear::new(0)
-    } else {
-        neighbors[p2_idx - 1][3]
-    };
-
-    if p2_idx == 0 {
-        // Linear transition: PL remains consistent unless changed by the event
-        current_pl - p1_pl
-    } else {
-        // Merge transition: Power level resolution during a DAG merge
-        // Simple case: Max of parents (for this benchmark)
-        // In a full implementation, this follows Matrix V2 resolution keys
-        current_pl - p1_pl // Placeholder for V2 resolution logic
-    }
-}
 
 pub struct StarGraph {
     /// The number of symbols in the permutation (n).
@@ -360,7 +302,7 @@ pub fn prove_matrix_resolution(events: Vec<MatrixEvent>, n: usize) -> Result<Raw
     let sorted_ids =
         ruma_lean::lean_kahn_sort(&conflicted_events, ruma_lean::StateResVersion::V2_1);
 
-    let mut event_map = BTreeMap::new();
+    let mut event_map = std::collections::BTreeMap::new();
     for ev in events {
         event_map.insert(ev.event_id.clone(), ev);
     }
@@ -383,45 +325,4 @@ pub fn prove_matrix_resolution(events: Vec<MatrixEvent>, n: usize) -> Result<Raw
 
     // 4. Proof Generation (k=1730 for 2^-128 security)
     Ok(g.prove(1730))
-}
-
-impl StarGraph {
-    pub fn verify_opening(root: [u8; 32], opening: &Opening) -> bool {
-        use tiny_keccak::{Hasher, Keccak};
-        let mut current_hash = [0u8; 32];
-        let mut k = Keccak::v256();
-        for e in &opening.state {
-            k.update(&e.to_le_bytes());
-        }
-        k.finalize(&mut current_hash);
-
-        let mut idx = opening.index;
-        for sibling in &opening.path {
-            let mut k = Keccak::v256();
-            let is_even = idx.is_multiple_of(2);
-            if is_even {
-                k.update(&current_hash);
-                k.update(sibling);
-            } else {
-                k.update(sibling);
-                k.update(&current_hash);
-            }
-            k.finalize(&mut current_hash);
-            idx /= 2;
-        }
-        current_hash == root
-    }
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct RawProof {
-    pub root: [u8; 32],
-    pub openings: Vec<Opening>,
-}
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct Opening {
-    pub index: usize,
-    pub state: [u32; STATE_WIDTH],
-    pub path: Vec<[u8; 32]>,
 }

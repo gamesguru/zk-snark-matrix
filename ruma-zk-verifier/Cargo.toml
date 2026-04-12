@@ -1,0 +1,28 @@
+[package]
+name = "ruma-zk-verifier"
+version.workspace = true
+edition = "2021"
+authors.workspace = true
+description = "WebAssembly bindings for \"trustless Matrix join\" verification in the browser."
+repository.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = []
+wasm = ["wasm-bindgen", "getrandom"]
+
+[dependencies]
+bincode.workspace = true
+getrandom = { version = "0.2", features = ["js"], optional = true }
+p3-baby-bear.workspace = true
+p3-field.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tiny-keccak.workspace = true
+wasm-bindgen = { version = "0.2", optional = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.42"

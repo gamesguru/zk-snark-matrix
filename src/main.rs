@@ -392,7 +392,8 @@ fn prepare_execution(input: Option<String>, limit: usize) -> ExecutionData {
         conflicted_events.insert(lean_ev.event_id.clone(), lean_ev);
     }
 
-    let sorted_ids = ruma_lean::lean_kahn_sort(&conflicted_events, ruma_lean::StateResVersion::V2);
+    let sorted_ids =
+        ruma_lean::lean_kahn_sort(&conflicted_events, ruma_lean::StateResVersion::V2_1);
 
     // With the Hybrid Witness, the HOST no longer needs to compute the expected hash!
     // The STARK VM computes the Last-Writer-Wins map and hashes it internally to guarantee truth.

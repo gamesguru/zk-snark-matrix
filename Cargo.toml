@@ -1,3 +1,10 @@
 [workspace]
 resolver = "2"
 members = ["ruma-zk", "ruma-zk-topair", "ruma-zk-wasm"]
+
+[workspace.package]
+version = "0.1.1"
+authors = ["Shane Jaroch <chown_tee@proton.me>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/gamesguru/ruma-zk"
+description = "High-level API for generating and verifying Matrix State Resolution proofs trustlessly."

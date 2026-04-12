@@ -1,11 +1,11 @@
 [package]
 name = "ruma-zk-topair"
-version = "0.1.0"
+version.workspace = true
+authors.workspace = true
 edition = "2021"
-authors = ["Shane Jaroch <chown_tee@proton.me>"]
-description = "Topological AIR coprocessor for Matrix State Resolution using Plonky3."
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/gamesguru/ruma-zk"
+description.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 p3-baby-bear = "0.5.2"

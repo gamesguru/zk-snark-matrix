@@ -1,11 +1,11 @@
 [package]
 name = "ruma-zk-wasm"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
-authors = ["Shane Jaroch <chown_tee@proton.me>"]
-description = "WebAssembly client for verifying ZK-Matrix-Join proofs trustlessly in the browser."
-repository = "https://github.com/gamesguru/ruma-zk"
-license = "MIT OR Apache-2.0"
+authors.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [lib]
 crate-type = ["cdylib"]

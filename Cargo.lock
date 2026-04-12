@@ -1426,7 +1426,7 @@ dependencies = [
 
 [[package]]
 name = "ruma-zk-topair"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ahash",
  "bincode",
@@ -1449,7 +1449,7 @@ dependencies = [
 
 [[package]]
 name = "ruma-zk-wasm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "getrandom 0.2.17",
  "serde",

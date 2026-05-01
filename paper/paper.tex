@@ -51,12 +51,12 @@
 
 % ── Abstract ──────────────────────────────────────────────────────
 \begin{abstract}
-We present \textsc{CTopology}, a graph-native STARK framework
+We present a graph-native STARK framework
 designed for the verifiable reduction of Directed Acyclic Graphs
 (DAGs).  Traditional zero-knowledge virtual machines (zkVMs)
 emulate Von Neumann architectures, incurring prohibitive
 $\mathcal{O}(C \log C)$ memory permutation overheads across
-millions of emulated CPU cycles~($C$).  \textsc{CTopology} bypasses
+millions of emulated CPU cycles~($C$).  Our framework bypasses
 CPU emulation entirely.  We separate the architecture into two
 distinct graphs: a \emph{Bene\v{s}/Superconcentrator routing graph}
 that physically enforces memory consistency within the execution
@@ -98,7 +98,7 @@ later read from RAM requires a global memory consistency check.
 Techniques like LogUp or offline memory checking force the prover to
 construct trace columns proportional to the number of CPU cycles,
 computing expensive algebraic fractions over large prime fields.
-\textsc{CTopology} abandons the virtual machine.  We observe that a
+Our approach abandons the virtual machine.  We observe that a
 broad class of verifiable computations---UTXO transaction graphs in
 blockchains, dependency resolution in build systems, causal event
 ordering in distributed ledgers---share a common structure: they
@@ -109,15 +109,15 @@ it directly into the STARK execution trace as a static,
 historical variables to their destination nodes via a rigidly
 constrained Bene\v{s} switching network.  By pairing this localized $\mathcal{O}(N \log N)$
 geometric routing with Expander-based LTCs operating strictly in
-characteristic~2, \textsc{CTopology} drops the prover overhead down
+characteristic~2, our framework drops the prover overhead down
 to the absolute limit of native CPU bitwise instructions.
 
 
 % ==================================================================
 \section{The Memory Consistency Bottleneck}\label{sec:bottleneck}
 
-To understand the asymptotic advantage of the \textsc{CTopology}
-model, we must formally contrast it with the standard zkVM memory
+To understand the asymptotic advantage of graph-native proving, we
+must formally contrast it with the standard zkVM memory
 checking paradigm utilized by systems like
 SP1~\cite{sp1} and Jolt/Lasso~\cite{jolt,lasso}.
 
@@ -143,15 +143,15 @@ and register state.  The constant is overwhelmingly dominated by
 instruction decoding and ISA emulation, leaving runtime bounds
 chained to $K \cdot N$.
 
-\subsection{The CTopology Bypass: Graph-Bound Routing}
+\subsection{Graph-Bound Routing}
 
-\textsc{CTopology} observes that verifying a DAG reduction
+We observe that verifying a DAG reduction
 does not require an ISA\@.  By projecting topological dependencies
 directly onto a static Bene\v{s} permutation network,
-\textsc{CTopology} replaces the temporal sequence of CPU
+our framework replaces the temporal sequence of CPU
 cycles~($C$) with a purely spatial 2D trace.  Rather than using
 algebraic global permutations to prove that node~$A$ read from
-node~$B$, \textsc{CTopology} embeds a routing graph directly into
+node~$B$, we embed a routing graph directly into
 the STARK execution trace.  Variables route through the trace
 geometrically via local switch constraints.  Consequently, the
 prover time scales strictly with the input size
@@ -173,7 +173,7 @@ carry-less multiplication (\texttt{CLMUL}).
 
 
 % ==================================================================
-\section{The CTopology Framework Architecture}\label{sec:arch}
+\section{Framework Architecture}\label{sec:arch}
 
 The framework is composed of two mathematically isolated graphs: a
 dynamically configured internal \emph{Routing Graph} to replace CPU
@@ -201,7 +201,7 @@ global memory bus.
 
 Standard STARKs commit to the execution trace by interpolating it
 into polynomials and generating Reed--Solomon codewords via FFTs.
-\textsc{CTopology} replaces this algebraic commitment with proximity
+Our framework replaces this algebraic commitment with proximity
 testing over a sparse Cryptographic Graph.  The prover stretches the
 binary grid by multiplying it against a public, sparse,
 constant-degree Expander matrix~$G$:
@@ -250,7 +250,7 @@ all required historical dependencies without edge collisions.
 \begin{proof}
 By induction on the layers of the hypercube, applying Hall's
 Marriage Theorem to the bipartite graph of upper and lower
-subnetworks.  In \textsc{CTopology}, this guarantees that the
+subnetworks.  In our framework, this guarantees that the
 prover's deterministic plaintext Waksman pathfinding will never fail
 to find a valid routing witness in $\mathcal{O}(N \log N)$ time,
 ensuring perfect completeness for any arbitrary DAG reduction.
@@ -318,7 +318,7 @@ Setting $k = 843$ therefore suffices.
 % ==================================================================
 \section{Case Study: Matrix Protocol State Resolution}\label{sec:matrix}
 
-To demonstrate the efficacy of the \textsc{CTopology} framework, we
+To demonstrate the efficacy of the proposed framework, we
 apply it to a notoriously demanding DAG-consistency problem: Matrix
 Protocol State Resolution~(v2)~\cite{matrix-spec}.
 
@@ -335,7 +335,7 @@ cryptographically sound but prohibitively expensive for large rooms;
 server's claimed state on trust, which is fast but a significant
 compromise on decentralization.
 
-By instantiating \textsc{CTopology} with a logic layer configured
+By instantiating our framework with a logic layer configured
 for Matrix authorization rules (power-level monotonicity and
 lexicographical tie-breaking), we entirely eliminate the need for
 local full-DAG re-execution.  We propose
@@ -350,7 +350,7 @@ A critical innovation in our application is the strict separation of
 cryptographic identity from protocol logic.  A na\"ive zkVM
 implementation would attempt to verify Ed25519 signatures inside the
 AIR trace, triggering catastrophic prime-field blowup.
-\textsc{CTopology} delegates identity verification to the native
+Our framework delegates identity verification to the native
 Host OS prior to trace execution.
 
 The OS natively authenticates the signatures in $\mathcal{O}(N)$
@@ -391,7 +391,7 @@ second; the verifier confirms it in $\approx 5$\,ms.
 % ==================================================================
 \section{Implementation and Formal Verification}\label{sec:impl}
 
-\textsc{CTopology} is implemented as three modular Rust crates:
+The framework is implemented as three modular Rust crates:
 
 \begin{center}
 \begin{tikzpicture}[
@@ -480,7 +480,7 @@ directions.
 % ==================================================================
 \section{Conclusion}\label{sec:conclusion}
 
-\textsc{CTopology} demonstrates that domain-specific graph
+We have demonstrated that domain-specific graph
 arithmetization can radically outperform general-purpose zkVMs for
 verifiable DAG computations.  By replacing CPU-emulated memory
 arrays with static Bene\v{s} routing networks, and replacing

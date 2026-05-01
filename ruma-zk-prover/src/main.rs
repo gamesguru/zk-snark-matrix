@@ -55,17 +55,32 @@ fn load_events(input_path: Option<String>, limit: usize) -> Vec<MatrixEvent> {
     raw_events
         .into_iter()
         .take(limit)
-        .map(|v| MatrixEvent {
-            event_id: v["event_id"].as_str().unwrap_or_default().to_string(),
-            event_type: v["event_type"].as_str().unwrap_or_default().to_string(),
-            state_key: v["state_key"].as_str().unwrap_or_default().to_string(),
-            prev_events: v["prev_events"]
-                .as_array()
-                .unwrap_or(&vec![])
-                .iter()
-                .filter_map(|e| e.as_str().map(|s| s.to_string()))
-                .collect(),
-            power_level: v["power_level"].as_u64().unwrap_or(100),
+        .map(|v| {
+            // Handle both schemas: real Matrix uses "type", test fixtures use "event_type"
+            let event_type = v["type"]
+                .as_str()
+                .or_else(|| v["event_type"].as_str())
+                .unwrap_or_default()
+                .to_string();
+
+            // Power level: check content.power_level, then top-level, default 100
+            let power_level = v["content"]["power_level"]
+                .as_u64()
+                .or_else(|| v["power_level"].as_u64())
+                .unwrap_or(100);
+
+            MatrixEvent {
+                event_id: v["event_id"].as_str().unwrap_or_default().to_string(),
+                event_type,
+                state_key: v["state_key"].as_str().unwrap_or_default().to_string(),
+                prev_events: v["prev_events"]
+                    .as_array()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .filter_map(|e| e.as_str().map(|s| s.to_string()))
+                    .collect(),
+                power_level,
+            }
         })
         .collect()
 }

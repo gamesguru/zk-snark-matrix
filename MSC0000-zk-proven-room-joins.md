@@ -76,6 +76,7 @@ Returns an HTTP 200 OK with the following JSON body:
   - `event_id` (string): The Matrix event ID representing the deterministic cutoff point for the zkVM rollup.
   - `resolved_state_root_hash` (string): The resulting Matrix state resolution output hash computed by the ZK program.
   - `zk_proof` (string): The base64-encoded, serialized Groth16 or Plonk zkVM receipt.
+    - If no compressed proof is available, we should return an error message specifying this.
   - `image_id` (string): The canonical program hash (SP1 verification key hash) utilized to generate the proof. This MUST strictly adhere to the expected hash for this `room_version`.
 - `delta` (object): The minimal, unverified Auth Chain events that have accumulated strictly after the `checkpoint.event_id`.
   - `recent_state_events` (array of objects): Standard Matrix state events (PDUs). The joining server will natively execute standard state resolution over these final events on top of the checkpoint.

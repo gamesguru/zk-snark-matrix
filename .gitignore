@@ -10,6 +10,12 @@
 *.srs
 /params/
 
+# academic paper
+paper.log
+paper.out
+paper.aux
+paper.pdf
+
 # IDEs and OS files
 .idea/
 .vscode/

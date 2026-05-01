@@ -68,6 +68,11 @@ android: ##H Generate Kotlin/Android (UniFFI) bindings
 proof-bench: ##H Run topological prover benchmark
 	cargo run -p ruma-zk-prover --release -- demo
 
+.PHONY: paper
+paper: ##H Compile paper/paper.tex to PDF
+	cd paper && pdflatex -interaction=nonstopmode paper.tex && pdflatex -interaction=nonstopmode paper.tex
+	@printf "\n${STYLE_GREEN}--- Paper compiled: paper/paper.pdf ---${STYLE_RESET}\n"
+
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

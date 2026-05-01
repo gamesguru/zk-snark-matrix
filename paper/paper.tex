@@ -66,7 +66,7 @@ All trace arithmetic operates in a binary field using pure
 bitwise XOR, eliminating the need for prime-field FFTs.
 The prover runs in $\mathcal{O}(N \log N)$ time using a Bene\v{s}
 routing network (with a theoretical $\mathcal{O}(N)$ limit via
-Expander Superconcentrators), the proof payload is 50--100\,KB,
+Expander Superconcentrators), the proof payload is 150--250\,KB,
 and the verifier confirms soundness in $\approx 5$\,ms.
 We provide a complete Rust implementation with cross-platform
 verifiers (WASM, UniFFI) and Lean~4 formalizations of the core
@@ -102,10 +102,15 @@ downloading the underlying event history.
 
 A na\"ive approach would run the full Rust state-resolution binary
 inside a general-purpose zkVM (e.g., SP1~\cite{sp1},
-Jolt~\cite{jolt}).  However, such VMs inherit an $O(N\log N)$
-sorting overhead from their memory-consistency permutation
-argument, making them prohibitively slow for rooms with hundreds of
-thousands of events.
+Jolt~\cite{jolt}).  However, such VMs inherit an
+$\mathcal{O}(C \log C)$ sorting overhead from their
+memory-consistency permutation argument---where $C$ is the number
+of emulated CPU cycles, which can reach millions for a single
+Matrix room.  \textsc{CTopology} eliminates the CPU emulator
+entirely: by treating the trace as a rigid topological graph, the
+overhead scales strictly with the number of events~$N$, reducing
+heavy cycle-by-cycle prime-field memory tables to native, bitwise
+$\mathcal{O}(N \log N)$ topological routing.
 
 \textsc{CTopology} takes a fundamentally different approach built on
 two key architectural insights:
@@ -173,7 +178,7 @@ This eliminates modular reduction over large primes, and all
 constraint evaluations reduce to native CPU bit operations
 executing in $\mathcal{O}(N)$ time.
 
-\begin{remark}[Implementation Field]
+\begin{remark}[Implementation Field]\label{rem:field}
 The current proof-of-concept implementation uses the BabyBear prime
 field ($p = 2^{31}-1$) via Plonky3, because mature binary-field
 STARK tooling (e.g., Binius) was not yet available at development
@@ -313,9 +318,12 @@ Alice multiplies every row of her trace grid by $G$:
 \[
   T_{\mathrm{stretched}} \;=\; T_{\mathrm{original}} \cdot G
 \]
-Because $G$ operates over $\mathbb{F}_2$, this multiplication is
-\textbf{strictly $\mathcal{O}(N)$}: each entry of $G$ contributes a
-single XOR.  No prime-field arithmetic or FFTs are required.
+Because $G$ is a \textbf{highly sparse, constant-degree matrix}
+operating over $\mathbb{F}_2$, each output element requires only a
+fixed number of XOR operations.  The stretch is therefore linear in
+the trace size; for a Bene\v{s} trace with $\mathcal{O}(N \log N)$
+nodes, the total cost is $\mathcal{O}(N \log N)$ bitwise XORs.
+No prime-field arithmetic or FFTs are required.
 
 A trace that was $32{,}768$ columns wide becomes $131{,}072$
 columns wide.  By the Expander mixing lemma, if Alice falsified
@@ -434,7 +442,9 @@ The proof is transmitted over the Matrix Federation API as:
 }
 \end{lstlisting}
 
-\noindent\textbf{Total payload size: 50--100\,KB.}
+\noindent\textbf{Total payload size: 150--250\,KB}
+(dominated by $k = 843$ Merkle authentication paths at tree depth
+$\approx 17$; aggressive path batching reduces this further).
 
 \subsection{Federation Endpoint}
 
@@ -451,38 +461,37 @@ Bob receives the payload.  He does not know the Waksman hints, does
 not have the trace grid, and does not need them.  His verifier
 executes the following gauntlet in ${\approx}\,5$\,ms:
 
-\subsection{Step 1: Native Reality Check --- $\mathcal{O}(N)$}
-
-Bob checks his local database: does the fork start at
-$\mathtt{merge\_base}$ and end at $\mathtt{tips}$?
-If he is missing events, he fetches the raw JSON over federation and
-\textbf{natively verifies the Ed25519 signatures}, guaranteeing that
-the proof inputs are physically authentic.
-
-\subsection{Step 2: Fiat--Shamir Synchronization --- $\mathcal{O}(1)$}
-
-Bob feeds the $\mathtt{public\_journal}$ and
-$\mathtt{trace\_commitment\_root}$ into his own hash sponge.
-He deterministically regenerates the \emph{exact same} random
-challenges and column indices that Alice used.
-
-\subsection{Step 3: Sum-Check Verification --- $\mathcal{O}(\log N)$}
-
-Bob evaluates the compact $\mathtt{sum\_check\_summary}$ equations.
-In microseconds he confirms that the constraint gates (switch
-validity, routing correctness, tie-breaking) all collapse to zero.
-
-\subsection{Step 4: LTC Proximity and Merkle Check --- $\mathcal{O}(1)$}
-
-Bob performs two final checks on the $k$ queried columns:
 \begin{enumerate}
-  \item \textbf{Merkle authentication.}  He hashes each column up its
-        $\mathtt{merkle\_auth\_path}$ and verifies it matches the
-        $\mathtt{trace\_commitment\_root}$.
-  \item \textbf{LTC proximity.}  He multiplies the un-stretched
-        portions of the queried columns by the public Expander
-        matrix~$G$ and checks exact equality with the stretched
-        portions Alice provided.
+  \item \textbf{Native Reality Check} --- $\mathcal{O}(N)$.
+    Bob checks his local database: does the fork start at
+    $\mathtt{merge\_base}$ and end at $\mathtt{tips}$?
+    If he is missing events, he fetches the raw JSON over federation
+    and \textbf{natively verifies the Ed25519 signatures},
+    guaranteeing that the proof inputs are physically authentic.
+
+  \item \textbf{Fiat--Shamir Synchronization} --- $\mathcal{O}(1)$.
+    Bob feeds the $\mathtt{public\_journal}$ and
+    $\mathtt{trace\_commitment\_root}$ into his own hash sponge.
+    He deterministically regenerates the \emph{exact same} random
+    challenges and column indices that Alice used.
+
+  \item \textbf{Sum-Check Verification} --- $\mathcal{O}(\log N)$.
+    Bob evaluates the compact $\mathtt{sum\_check\_summary}$
+    equations.  In microseconds he confirms that the constraint
+    gates (switch validity, routing correctness, tie-breaking) all
+    collapse to zero.
+
+  \item \textbf{LTC Proximity and Merkle Check} --- $\mathcal{O}(1)$.
+    Bob performs two final checks on the $k$ queried columns:
+    \begin{enumerate}[label=(\alph*)]
+      \item \emph{Merkle authentication.}  He hashes each column up
+            its $\mathtt{merkle\_auth\_path}$ and verifies it matches
+            the $\mathtt{trace\_commitment\_root}$.
+      \item \emph{LTC proximity.}  He multiplies the un-stretched
+            portions of the queried columns by the public Expander
+            matrix~$G$ and checks exact equality with the stretched
+            portions Alice provided.
+    \end{enumerate}
 \end{enumerate}
 
 \begin{theorem}[Soundness]\label{thm:soundness}
@@ -523,7 +532,7 @@ Taking logarithms:
 \[
   k \;\ge\; \frac{128 \ln 2}{\ln\!\bigl(\tfrac{1}{1-\delta}\bigr)}
     \;=\; \frac{128 \ln 2}{\ln(10/9)}
-    \;\approx\; 842.8.
+    \;\approx\; 842.1.
 \]
 Setting $k = 843$ therefore suffices.
 \end{proof}
@@ -559,7 +568,7 @@ $\mathtt{final\_state\_hash}$ into his database.
 Defines the trace layout, the \texttt{MatrixEvent} data type, the
 topological constraint function, and the canonical verification key
 hash.  The PoC operates over BabyBear ($p = 2^{31}-1$) via Plonky3;
-the production target is $\mathbb{F}_2$ (see Remark~2.4).
+the production target is $\mathbb{F}_2$ (see \Cref{rem:field}).
 The crate is \texttt{\#![no\_std]}.
 
 \paragraph{Prover (\texttt{ruma-zk-prover}).}
@@ -589,7 +598,10 @@ in the \texttt{ctopology} Lean~4 library (Mathlib):
 \paragraph{Theorem 1: Topological Beats Von Neumann}
 (\texttt{Arithmetization.lean}).
 A Von Neumann machine incurs cost $N\log N$ (permutation argument);
-the topological coprocessor incurs cost $N$.  Proved via the bound
+using an Expander Superconcentrator the topological coprocessor
+achieves strict $\mathcal{O}(N)$ cost.  (The Bene\v{s} network
+used in the current PoC achieves $\mathcal{O}(N \log N)$, still
+without a prime-field permutation argument.)  Proved via the bound
 $e < 3 \le N$ for $N > 2$.
 
 \paragraph{Theorem 2: PCS Isolation}
@@ -713,8 +725,9 @@ CTopology demonstrates that domain-specific graph arithmetization can
 replace general-purpose zkVM execution for verifiable protocol-level
 computations.  By separating the routing graph (Bene\v{s} network for
 CPU-free memory access) from the cryptographic graph (Expander LTC for
-FFT-free commitment), we achieve $\mathcal{O}(N)$ binary-field proving,
-50--100\,KB proof payloads, and ${\approx}\,5$\,ms verification---all
+FFT-free commitment), we achieve $\mathcal{O}(N \log N)$
+binary-field proving (with a theoretical $\mathcal{O}(N)$ limit),
+150--250\,KB proof payloads, and ${\approx}\,5$\,ms verification---all
 with $2^{-128}$ soundness error.  The architecture provides a concrete
 path toward trustless, sub-second federated room joins in the Matrix
 protocol.

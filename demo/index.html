@@ -433,8 +433,8 @@
             id: "v2",
             num: "2",
             label: "Native Ed25519 Check (state only)",
-            detail: "O(N) on subset -- DoS short-circuit",
-            ms: 300,
+            detail: "43,543 sigs @ ~70us each -- ~3 sec single-threaded",
+            ms: 800,
             failOn: "badsig",
           },
           {
@@ -590,7 +590,7 @@
                 "SHORT-CIRCUIT: Native Ed25519 check caught invalid signature before STARK math. Proof never evaluated.";
             } else {
               alert.textContent =
-                "da_root DIVERGENCE detected among federation peers! Falling back to traditional /send_join flow.";
+                "da_root DIVERGENCE detected among federation peers! Requesting ZK proof from a trusted peer with matching da_root.";
             }
             document.getElementById("stVerdict").textContent = "REJECTED";
             document.getElementById("stVerdict").style.color = "var(--red)";
@@ -606,7 +606,7 @@
           alert.className = "alert ok show";
           if (isZK) {
             alert.textContent =
-              "VERIFIED: Room state cryptographically proven correct. Auth chain never downloaded. Total: ~13.6 ms verification.";
+              "VERIFIED: Room state cryptographically proven correct. Auth chain never downloaded. Sigs: ~3 sec, STARK: ~13.6 ms.";
           } else {
             alert.textContent =
               "VERIFIED: Full state resolution re-executed locally. Required downloading and processing 90 MB of auth chain data.";
@@ -617,7 +617,7 @@
 
         // Stats
         document.getElementById("stBw").textContent = isZK ? "15.2 MB" : "90 MB";
-        document.getElementById("stTime").textContent = isZK ? "~13.6 ms" : "~47 sec";
+        document.getElementById("stTime").textContent = isZK ? "~3 sec" : "~47 sec";
         document.getElementById("stConst").textContent = isZK ? "1,015,808" : "N/A";
 
         arrow.classList.add("idle");

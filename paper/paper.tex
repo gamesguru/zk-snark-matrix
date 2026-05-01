@@ -399,8 +399,8 @@ was executed correctly on a DAG of events that had valid signatures.''}
 The \textbf{verifier} (joining guest server) does \emph{not} receive
 the auth chain---that is the entire value proposition.
 The verifier receives only the current state events and the proof.
-It checks Ed25519 signatures on the received state events (a cheap
-$\mathcal{O}(N)$ pre-check on a small subset), then validates
+It checks Ed25519 signatures on \emph{all} received state events
+($\mathcal{O}(N)$ native verification as a DoS short-circuit), then validates
 the proof's \texttt{da\_root} against the federation via multi-server
 attestation (\Cref{sec:bench}).  If the honest minority of federation
 peers agrees on the same \texttt{da\_root}, the hidden auth chain

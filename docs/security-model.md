@@ -123,9 +123,10 @@ The verifier (the joining guest server) receives **only the state events**
 auth chain -- that is the entire value proposition.
 
 1. Receive state events + proof from resident server.
-2. **Verify Ed25519 signatures** on the received state events (native, O(N)
-   on a small subset). Reject immediately if any fail. This is a cheap
-   DoS short-circuit.
+2. **Verify Ed25519 signatures** on ALL received state events (native,
+   O(N)). Reject immediately if any single signature fails. This is a
+   cheap DoS short-circuit that prevents the verifier from wasting time
+   on STARK verification for obviously fabricated events.
 3. Check `da_root` in the proof's public journal against the federation.
    Query multiple resident servers: "does this `da_root` match your view
    of the room?" If the honest majority agrees, the hidden auth chain
@@ -133,8 +134,10 @@ auth chain -- that is the entire value proposition.
 4. Verify the STARK proof (O(log N)).
 
 If step 2 fails, the verifier never reaches step 4. If step 3 fails
-(da_root divergence), the verifier knows the prover omitted or fabricated
-events and falls back to the traditional `/send_join` flow.
+(da_root divergence), the verifier rejects the proof and requests a
+new ZK proof from a trusted peer whose `da_root` matches the federation
+consensus. Traditional `/send_join` is used only as a last resort when
+no ZK-capable peer is available.
 
 ### The blind spot: auth chain opacity
 

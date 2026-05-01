@@ -33,8 +33,9 @@
 
 % ── Title ─────────────────────────────────────────────────────────
 \title{%
-  \textbf{CTopology: A Lightweight Graph-Based STARK Framework\\
-  for Verifiable Matrix Protocol State Resolution}}
+  \textbf{Lightweight Graph-Based STARK Frameworks:}\\
+  \text{Real-Time Proving with Large Inputs}
+}
 
 \author{
   Shane Jaroch\\
@@ -51,18 +52,22 @@
 % ── Abstract ──────────────────────────────────────────────────────
 \begin{abstract}
 We present \textsc{CTopology}, a proof-of-concept framework that
-replaces general-purpose zkVM execution of Matrix protocol state
-resolution with a lightweight, graph-native STARK construction.
+enables verifiable Matrix protocol state resolution via a
+lightweight, graph-native STARK construction---avoiding the
+prohibitive overhead of general-purpose zkVM approaches.
 The architecture separates two distinct graph roles: a
 \emph{Bene\v{s}/Superconcentrator routing graph} that replaces the
 CPU memory model inside the execution trace, and an
 \emph{Expander-based Locally Testable Code} (LTC) that stretches
 the committed trace so that any single falsified bit cascades into
-$\ge 10\%$ corruption---detectable by $\approx 100$ random column
-queries.  All arithmetic operates in a binary field using pure
+$\ge 10\%$ corruption---detectable by $k \approx 840$ random column
+queries achieving $2^{-128}$ soundness error.
+All trace arithmetic operates in a binary field using pure
 bitwise XOR, eliminating the need for prime-field FFTs.
-The prover runs in $\mathcal{O}(N)$ time, the proof payload is
-50--100\,KB, and the verifier confirms soundness in $\approx 5$\,ms.
+The prover runs in $\mathcal{O}(N \log N)$ time using a Bene\v{s}
+routing network (with a theoretical $\mathcal{O}(N)$ limit via
+Expander Superconcentrators), the proof payload is 50--100\,KB,
+and the verifier confirms soundness in $\approx 5$\,ms.
 We provide a complete Rust implementation with cross-platform
 verifiers (WASM, UniFFI) and Lean~4 formalizations of the core
 soundness theorems, demonstrating feasibility for trustless
@@ -95,10 +100,12 @@ generates a succinct proof that it executed state resolution correctly,
 and the joining server verifies the proof in milliseconds without
 downloading the underlying event history.
 
-Prior work explored general-purpose zkVMs (SP1, Jolt) to execute the
-full Rust state-resolution binary inside a virtual machine.  While
-correct, this approach inherits the $O(N\log N)$ sorting overhead of
-the VM's memory-consistency permutation argument.
+A na\"ive approach would run the full Rust state-resolution binary
+inside a general-purpose zkVM (e.g., SP1~\cite{sp1},
+Jolt~\cite{jolt}).  However, such VMs inherit an $O(N\log N)$
+sorting overhead from their memory-consistency permutation
+argument, making them prohibitively slow for rooms with hundreds of
+thousands of events.
 
 \textsc{CTopology} takes a fundamentally different approach built on
 two key architectural insights:
@@ -157,10 +164,13 @@ prime-field polynomial arithmetic (no FFTs).
 
 \subsection{Binary Field Arithmetic}
 
-The target architecture operates over $\mathbb{F}_2$ (or a small
-binary tower extension).  Addition is bitwise XOR; multiplication is
-bitwise AND.  This eliminates modular reduction over large primes,
-and all constraint evaluations reduce to native CPU bit operations
+Base trace arithmetic operates over $\mathbb{F}_2$, where addition
+is bitwise XOR and multiplication is bitwise AND.  Cryptographic
+extension-field arithmetic (e.g., $\mathbb{F}_{2^{128}}$, used for
+Fiat--Shamir challenges during the Sum-Check phase) utilizes
+hardware-accelerated carry-less multiplication (\texttt{CLMUL}).
+This eliminates modular reduction over large primes, and all
+constraint evaluations reduce to native CPU bit operations
 executing in $\mathcal{O}(N)$ time.
 
 \begin{remark}[Implementation Field]
@@ -348,14 +358,42 @@ Each Bene\v{s} switch flag $s$ must be binary:
 
 \paragraph{Routing Correctness.}
 At every Bene\v{s} node with inputs $(a, b)$, switch~$s$, and
-output~$y$, the constraint enforces correct conditional routing:
+output~$y$, the constraint enforces correct conditional routing.
+
+\begin{lemma}[Routing Gate Correctness]\label{lem:routing}
+Let $s \in \mathbb{F}_2$ be a switch flag with inputs
+$a,b \in \mathbb{F}_2^w$ and output $y \in \mathbb{F}_2^w$.
+Define the constraint
 \begin{equation}\label{eq:routing}
-  C_{\mathrm{route}} \;=\;
-    (1 - s) \cdot a \;+\; s \cdot b \;-\; y \;=\; 0
+  C_{\mathrm{route}}(s,a,b,y) \;:=\;
+    y \;\oplus\; a \;\oplus\; s \cdot (a \oplus b).
 \end{equation}
-This algebraic gate replaces the dynamic \texttt{parent(v)} lookup
-of a Von Neumann memory model with a fixed geometric polynomial
-applied uniformly across the trace.
+Then $C_{\mathrm{route}} = 0$ if and only if the output satisfies
+the conditional selection $y = a$ when $s = 0$ and $y = b$ when
+$s = 1$.
+\end{lemma}
+
+\begin{proof}
+Because we operate in characteristic~$2$, subtraction coincides
+with addition ($\oplus$) and $-1 = 1$.  The standard algebraic
+multiplexer $(1-s)\cdot a + s\cdot b - y$ therefore reduces to
+$y \oplus a \oplus s \cdot (a \oplus b)$.
+
+\emph{Case $s=0$.}  The switch term vanishes:
+$C_{\mathrm{route}} = y \oplus a = 0$, so $y = a$
+(straight-through).
+
+\emph{Case $s=1$.}  We obtain
+$C_{\mathrm{route}} = y \oplus a \oplus (a \oplus b)
+  = y \oplus b = 0$,
+so $y = b$ (cross).
+
+Since $s$ is constrained to $\mathbb{F}_2$ by the switch-validity
+gate $s \cdot (s \oplus 1) = 0$, these are the only two cases.
+\end{proof}
+
+This algebraic multiplexer replaces dynamic memory lookups with a
+fixed geometric bitwise gate applied uniformly across the trace.
 
 \paragraph{Tie-Breaker Logic.}
 The lexicographic ordering rule of State Resolution v2.1 is
@@ -372,7 +410,7 @@ summary array and feeds it back to the sponge.
 % ==================================================================
 \section{Phase 5: Proof Payload}\label{sec:phase5}
 
-The sponge generates ${\approx}\,100$ random column indices from the
+The sponge generates $k = 843$ random column indices from the
 stretched grid.  Alice opens those specific columns in the Merkle
 tree, deletes the ${\sim}15$\,MB RAM grid, and packages the result.
 
@@ -436,7 +474,7 @@ validity, routing correctness, tie-breaking) all collapse to zero.
 
 \subsection{Step 4: LTC Proximity and Merkle Check --- $\mathcal{O}(1)$}
 
-Bob performs two final checks on the ${\approx}\,100$ queried columns:
+Bob performs two final checks on the $k$ queried columns:
 \begin{enumerate}
   \item \textbf{Merkle authentication.}  He hashes each column up its
         $\mathtt{merkle\_auth\_path}$ and verifies it matches the
@@ -447,15 +485,48 @@ Bob performs two final checks on the ${\approx}\,100$ queried columns:
         portions Alice provided.
 \end{enumerate}
 
-\begin{theorem}[Soundness Guarantee]\label{thm:soundness}
-If Alice falsified any component---a power level, a routing switch,
-the final state hash, or a tie-breaker---she would have altered at
-least one bit in the original trace.  The LTC Expander physically
-amplifies that single bit into $\ge 10\%$ corruption of the
-stretched grid.  Because Bob checked ${\approx}\,100$ random columns
-and found zero errors, the probability that the lie escaped
-detection is at most $2^{-128}$.
+\begin{theorem}[Soundness]\label{thm:soundness}
+Let $G$ be an $(n, d, \lambda)$-Expander used as the LTC commitment
+matrix with relative distance $\delta \ge 0.10$.  If a dishonest
+prover Alice submits a trace that differs from every valid trace in
+at least one bit, and the verifier draws $k$ column queries
+uniformly at random, then the probability that Alice's forgery
+escapes detection satisfies
+\[
+  \Pr[\text{forgery accepted}] \;\le\; (1 - \delta)^{k}.
+\]
+In particular, setting $k = 843$ yields soundness error
+$\le 2^{-128}$.
 \end{theorem}
+
+\begin{proof}
+Suppose Alice has altered at least one bit in the original
+$W \times D$ trace grid.  By the Expander mixing lemma, the LTC
+matrix~$G$ amplifies any nonzero input perturbation so that at
+least a $\delta$-fraction of the $W_{\mathrm{stretched}}$ output
+columns become corrupted.  Concretely, if the original trace
+differs from a valid trace on even a single entry, then
+$\ge \delta \cdot W_{\mathrm{stretched}}$ columns of the stretched
+trace will fail the proximity check.
+
+Each of the verifier's $k$ queries is drawn independently and
+uniformly.  The probability that a single query avoids all
+corrupted columns is at most $1 - \delta$.  Since the queries are
+independent, the probability that all $k$ queries miss every
+corrupted column is at most $(1 - \delta)^k$.
+
+To achieve $2^{-128}$ soundness error we require
+\[
+  (1 - \delta)^k \;\le\; 2^{-128}.
+\]
+Taking logarithms:
+\[
+  k \;\ge\; \frac{128 \ln 2}{\ln\!\bigl(\tfrac{1}{1-\delta}\bigr)}
+    \;=\; \frac{128 \ln 2}{\ln(10/9)}
+    \;\approx\; 842.8.
+\]
+Setting $k = 843$ therefore suffices.
+\end{proof}
 
 Bob's verifier returns \textsc{True}.  He accepts
 $\mathtt{final\_state\_hash}$ into his database.
@@ -573,8 +644,8 @@ gains while preserving end-to-end authentication.
   \item[Soundness.]
     The LTC stretching guarantees that any single-bit falsification
     corrupts $\ge 10\%$ of the stretched grid.  With
-    ${\approx}\,100$ random queries the soundness error is
-    $2^{-128}$.
+    $k = 843$ random queries the soundness error is
+    $\le 2^{-128}$ (\Cref{thm:soundness}).
 
   \item[Data Availability.]
     A valid proof attests to correct execution but not event

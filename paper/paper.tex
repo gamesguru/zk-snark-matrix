@@ -178,15 +178,18 @@ phases, from raw database bytes to the network payload.
     arr/.style={-{Stealth[length=5pt]}, thick},
     node distance=0.6cm
   ]
+  % Row 1: Prover pipeline
   \node[phase=orange!15]  (p1) {Phase 1\\Inputs};
   \node[phase=blue!15,   right=of p1] (p2) {Phase 2\\Trace};
   \node[phase=purple!15, right=of p2] (p3) {Phase 3\\LTC Commit};
-  \node[phase=red!15,    right=of p3] (p4) {Phase 4\\Sum-Check};
+  % Row 2: Proof + Network + Verifier
+  \node[phase=red!15,    below=0.8cm of p1] (p4) {Phase 4\\Sum-Check};
   \node[phase=cyan!15,   right=of p4] (p5) {Phase 5\\Payload};
   \node[phase=green!15,  right=of p5] (p6) {Phase 6\\Verify};
+  % Arrows
   \draw[arr] (p1)--(p2); \draw[arr] (p2)--(p3);
-  \draw[arr] (p3)--(p4); \draw[arr] (p4)--(p5);
-  \draw[arr] (p5)--(p6);
+  \draw[arr] (p3.south) |- ++(0,-0.4) -| (p4.north);
+  \draw[arr] (p4)--(p5); \draw[arr] (p5)--(p6);
 \end{tikzpicture}
 \end{center}
 
@@ -325,18 +328,30 @@ mathematical challenge.
 
 Instead of forcing the verifier to check all nodes, the Sum-Check
 protocol collapses the entire 2D grid into a single equation.
-Alice evaluates the local constraint gates:
+Alice evaluates three families of local constraint gates:
 
-\begin{itemize}
-  \item \textbf{Switch Check:}
-        $S \;\mathrm{AND}\; (S \;\mathrm{XOR}\; 1) = 0$ \quad
-        (each Bene\v{s} switch is a valid binary value).
-  \item \textbf{Routing Check:}
-        Data legally travels across the network edges via XOR.
-  \item \textbf{Tie-Breaker Check:}
-        The lexicographic ordering rule of State Resolution v2.1
-        is satisfied.
-\end{itemize}
+\paragraph{Switch Validity.}
+Each Bene\v{s} switch flag $s$ must be binary:
+\[
+  C_{\mathrm{switch}}(s) \;=\; s \cdot (s \oplus 1) \;=\; 0
+\]
+
+\paragraph{Routing Correctness.}
+At every Bene\v{s} node with inputs $(a, b)$, switch~$s$, and
+output~$y$, the constraint enforces correct conditional routing:
+\begin{equation}\label{eq:routing}
+  C_{\mathrm{route}} \;=\;
+    (1 - s) \cdot a \;+\; s \cdot b \;-\; y \;=\; 0
+\end{equation}
+This algebraic gate replaces the dynamic \texttt{parent(v)} lookup
+of a Von Neumann memory model with a fixed geometric polynomial
+applied uniformly across the trace.
+
+\paragraph{Tie-Breaker Logic.}
+The lexicographic ordering rule of State Resolution v2.1 is
+enforced at the logic layer, verifying that power-level comparisons
+and event-ID tie-breaks produce the correct
+$\mathtt{final\_state\_hash}$.
 
 \subsection{Layer Combination}
 
@@ -466,9 +481,12 @@ verification key hash.  The crate is \texttt{\#![no\_std]}.
 
 \paragraph{Prover (\texttt{ruma-zk-prover}).}
 Orchestrates Phases~1--5: JSON deserialization, Kahn sort via
-\texttt{ruma-lean}, Star Graph trace construction, parallel
-topology verification (Rayon), Merkle commitment, and proof
-serialization.
+\texttt{ruma-lean}, trace construction over the routing graph,
+parallel topology verification (Rayon), LTC commitment, and proof
+serialization.  The current proof-of-concept uses a Star Graph
+$S_n$ walk as scaffolding; the production target is the Boolean
+Hypercube $H_d$ with Bene\v{s} routing (padding to $2^d$
+rather than $n!$).
 
 \paragraph{Verifier (\texttt{ruma-zk-verifier}).}
 Implements Phase~6.  Compiles to three targets:
@@ -506,14 +524,33 @@ $k$ random queries catch the deviation with failure probability
 $\le (1 - \lambda\delta)^k$, where $\lambda$ is the spectral
 expansion bound.
 
-\paragraph{Star Graph Embedding}
+\paragraph{Topological Embedding}
 (\texttt{StarGraphEmbedding.lean}).
-Axiomatizes that for any Kahn-sorted event list, a valid Star
-Graph walk embedding exists.
+Axiomatizes that for any Kahn-sorted event list, a valid
+routing-graph walk embedding exists.  The current formalization
+targets the Star Graph; extending to the Hypercube/Bene\v{s}
+network is planned future work.
 
 
 % ==================================================================
 \section{Security Considerations}\label{sec:security}
+
+\subsection{Identity vs.\ Logic Separation}
+
+CTopology deliberately excludes Ed25519 elliptic-curve signature
+verification from the AIR trace.  Identity and message authenticity
+are verified \emph{natively} by the Host OS in $\mathcal{O}(N)$
+time prior to ZK execution, producing a natively authenticated
+$\mathtt{DAG\_Root}$.  The STARK proof strictly enforces the
+topological sort and authorization logic.
+
+By binding the STARK to the natively verified
+$\mathtt{DAG\_Root}$ via the Fiat--Shamir heuristic, CTopology
+completely isolates heavy elliptic-curve cryptography from the
+binary-field AIR trace, yielding order-of-magnitude performance
+gains while preserving end-to-end authentication.
+
+\subsection{Threat Model}
 
 \begin{description}[style=nextline]
   \item[Circuit Identity.]

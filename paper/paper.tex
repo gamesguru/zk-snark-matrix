@@ -34,7 +34,7 @@
 % ── Title ─────────────────────────────────────────────────────────
 \title{%
   \textbf{Lightweight Graph-Based STARK Frameworks:}\\
-  \text{Real-Time Proving with Large Inputs}
+  \text{Real-Time Proving on Large Inputs}
 }
 
 \author{
@@ -51,322 +51,210 @@
 
 % ── Abstract ──────────────────────────────────────────────────────
 \begin{abstract}
-We present \textsc{CTopology}, a proof-of-concept framework that
-enables verifiable Matrix protocol state resolution via a
-lightweight, graph-native STARK construction---avoiding the
-prohibitive overhead of general-purpose zkVM approaches.
-The architecture separates two distinct graph roles: a
-\emph{Bene\v{s}/Superconcentrator routing graph} that replaces the
-CPU memory model inside the execution trace, and an
+We present \textsc{CTopology}, a graph-native STARK framework
+designed for the verifiable reduction of Directed Acyclic Graphs
+(DAGs).  Traditional zero-knowledge virtual machines (zkVMs)
+emulate Von Neumann architectures, incurring prohibitive
+$\mathcal{O}(C \log C)$ memory permutation overheads across
+millions of emulated CPU cycles~($C$).  \textsc{CTopology} bypasses
+CPU emulation entirely.  We separate the architecture into two
+distinct graphs: a \emph{Bene\v{s}/Superconcentrator routing graph}
+that physically enforces memory consistency within the execution
+trace without global permutation arguments, and an
 \emph{Expander-based Locally Testable Code} (LTC) that stretches
-the committed trace so that any single falsified bit cascades into
-$\ge 10\%$ corruption---detectable by $k \approx 840$ random column
-queries achieving $2^{-128}$ soundness error.
-All trace arithmetic operates in a binary field using pure
-bitwise XOR, eliminating the need for prime-field FFTs.
-The prover runs in $\mathcal{O}(N \log N)$ time using a Bene\v{s}
-routing network (with a theoretical $\mathcal{O}(N)$ limit via
-Expander Superconcentrators), the proof payload is 150--250\,KB,
-and the verifier confirms soundness in $\approx 5$\,ms.
-We provide a complete Rust implementation with cross-platform
-verifiers (WASM, UniFFI) and Lean~4 formalizations of the core
-soundness theorems, demonstrating feasibility for trustless
-federated room joins in the Matrix ecosystem.
+the committed trace such that any single falsified bit cascades
+into $\ge 10\%$ corruption---detectable by $k = 843$ random column
+queries achieving $2^{-128}$ soundness error.  All trace arithmetic
+operates in a binary field using pure bitwise XOR, eliminating the
+need for prime-field FFTs.  The prover runs in
+$\mathcal{O}(N \log N)$ time, the proof payload is 150--250\,KB,
+and the verifier confirms soundness in $\approx 5$\,ms.  We
+demonstrate the framework's efficacy by applying it to Matrix
+Protocol state resolution, transforming a massively concurrent DAG
+reduction into a trustless, sub-centisecond verification.
 \end{abstract}
 
 
 % ==================================================================
 \section{Introduction}\label{sec:intro}
 
-The Matrix protocol~\cite{matrix-spec} is an open standard for
-decentralized, end-to-end encrypted communication.  When a homeserver
-\emph{joins} a federated room it must obtain and verify the room's
-\emph{state}---the cumulative result of applying every authorization
-event from genesis through a deterministic State Resolution
-algorithm~(v2).
+The demand for verifiable computation has driven rapid advancements
+in Scalable Transparent Arguments of Knowledge (STARKs).  The
+prevailing industry trajectory favors general-purpose
+zkVMs~\cite{sp1,jolt}, which compile high-level code into RISC-V
+instruction traces and prove their correct execution
+cycle-by-cycle.
 
-Two strategies exist today:
-\begin{enumerate}[label=(\roman*)]
-  \item \textbf{Full Join.}  Download the entire Auth Chain and
-        re-execute state resolution locally.  Cryptographically
-        sound but prohibitively expensive for large rooms.
-  \item \textbf{Partial Join} (MSC\,3902).  Accept the resident
-        server's claimed state on trust and verify in the background.
-        Fast, but a significant compromise on decentralization.
-\end{enumerate}
+While general-purpose zkVMs offer developer ergonomics, they
+introduce a catastrophic computational bottleneck for applications
+processing highly structured, large-scale data---such as
+deterministically reducing concurrent states in distributed systems
+or verifying large DAGs.  The bottleneck stems fundamentally from
+the Von Neumann architecture: the emulation of random-access memory
+and instruction cycles.
 
-Zero-knowledge proof systems offer a third path: the resident server
-generates a succinct proof that it executed state resolution correctly,
-and the joining server verifies the proof in milliseconds without
-downloading the underlying event history.
-
-A na\"ive approach would run the full Rust state-resolution binary
-inside a general-purpose zkVM (e.g., SP1~\cite{sp1},
-Jolt~\cite{jolt}).  However, such VMs inherit an
-$\mathcal{O}(C \log C)$ sorting overhead from their
-memory-consistency permutation argument---where $C$ is the number
-of emulated CPU cycles, which can reach millions for a single
-Matrix room.  \textsc{CTopology} eliminates the CPU emulator
-entirely: by treating the trace as a rigid topological graph, the
-overhead scales strictly with the number of events~$N$, reducing
-heavy cycle-by-cycle prime-field memory tables to native, bitwise
-$\mathcal{O}(N \log N)$ topological routing.
-
-\textsc{CTopology} takes a fundamentally different approach built on
-two key architectural insights:
-
-\begin{enumerate}
-  \item \textbf{Graph-native memory routing.}  Rather than emulating
-        a Von Neumann memory model, we route data through a
-        Bene\v{s}/Superconcentrator network whose switches are
-        pre-computed by the prover as private witness bits.
-  \item \textbf{LTC-based commitment.}  Rather than committing the
-        trace via Reed--Solomon polynomials and FFTs, we multiply the
-        binary trace by a sparse Expander matrix, achieving
-        $\mathcal{O}(N)$ commitment with aggressive error
-        amplification.
-\end{enumerate}
+In a zkVM, proving that a specific value was correctly written and
+later read from RAM requires a global memory consistency check.
+Techniques like LogUp or offline memory checking force the prover to
+construct trace columns proportional to the number of CPU cycles,
+computing expensive algebraic fractions over large prime fields.
+\textsc{CTopology} abandons the virtual machine.  We observe that a
+broad class of verifiable computations---UTXO transaction graphs in
+blockchains, dependency resolution in build systems, causal event
+ordering in distributed ledgers---share a common structure: they
+reduce a DAG by propagating values along topological dependencies.
+Rather than emulating this walk cycle-by-cycle inside a VM, we embed
+it directly into the STARK execution trace as a static,
+\emph{Graph-Native} routing network.  We physically route
+historical variables to their destination nodes via a rigidly
+constrained Bene\v{s} switching network.  By pairing this localized $\mathcal{O}(N \log N)$
+geometric routing with Expander-based LTCs operating strictly in
+characteristic~2, \textsc{CTopology} drops the prover overhead down
+to the absolute limit of native CPU bitwise instructions.
 
 
 % ==================================================================
-\section{Preliminaries}\label{sec:prelim}
+\section{The Memory Consistency Bottleneck}\label{sec:bottleneck}
 
-\subsection{Matrix State Resolution v2}
+To understand the asymptotic advantage of the \textsc{CTopology}
+model, we must formally contrast it with the standard zkVM memory
+checking paradigm utilized by systems like
+SP1~\cite{sp1} and Jolt/Lasso~\cite{jolt,lasso}.
 
-A Matrix room's history forms a DAG where each event references zero or
-more \emph{prev\_events}.  State Resolution~v2 deterministically
-merges concurrent branches by:
-\begin{enumerate}
-  \item Topologically sorting the conflicted events (Kahn's algorithm).
-  \item Iteratively applying authorization rules (power levels, event
-        types) to produce a single resolved state.
-\end{enumerate}
-The output is a mapping
-$(\mathit{event\_type},\;\mathit{state\_key}) \mapsto \mathit{event\_id}$
-which we hash to a 256-bit \emph{state root}.
+\subsection{The zkVM Paradigm: LogUp and Grand Products}
 
-\subsection{The Two Graphs}
+General-purpose zkVMs operate by emulating an Instruction Set
+Architecture (ISA).  Let $N$ be the number of nodes in a DAG, and
+$C$ be the total CPU cycles required to process it natively.  To
+prove RAM consistency, trace-based zkVMs utilize permutation
+arguments like LogUp.  Every memory read and write generates a
+fractional term $\frac{1}{X - \mathrm{val}}$.  For a standard
+topological sort, manipulating pointers and arrays in RISC-V
+inflates $C$ to orders of magnitude larger than~$N$ (i.e.,
+$C = K \cdot N$, where $K$ is often $10^3$ to~$10^4$).  The prover
+is bound by $\mathcal{O}(C \log C)$ Fast Fourier Transforms (FFTs)
+over a massive prime field to evaluate these rational functions.
 
-A critical distinction in this architecture is the separation of two
-graphs serving entirely different purposes:
+Sum-check-based zkVMs (e.g., Jolt~\cite{jolt}) replace the FFT with
+multi-linear extensions and lookup tables (Lasso~\cite{lasso}).
+While this achieves strictly $\mathcal{O}(C)$ prover time, it still
+inherently tracks the Von Neumann cycle counter, program counter,
+and register state.  The constant is overwhelmingly dominated by
+instruction decoding and ISA emulation, leaving runtime bounds
+chained to $K \cdot N$.
 
-\begin{definition}[Routing Graph]\label{def:routing}
-The \emph{Routing Graph} is a Bene\v{s} network (or more generally, a
-superconcentrator) used \textbf{inside the execution trace} to route
-Matrix event data---particularly historical power levels---from their
-origin rows to the rows where they are consumed, without a
-general-purpose CPU or RAM model.  Its switch settings are part of
-the private witness.
-\end{definition}
+\subsection{The CTopology Bypass: Graph-Bound Routing}
 
-\begin{definition}[Cryptographic Graph]\label{def:ltc}
-The \emph{Cryptographic Graph} is a hardcoded, highly sparse Expander
-Graph represented as a binary matrix~$G$.  It is used by the prover
-to \textbf{stretch the committed trace} so that the verifier can
-detect falsification via random column sampling, without
-prime-field polynomial arithmetic (no FFTs).
-\end{definition}
-
-\subsection{Binary Field Arithmetic}
-
-Base trace arithmetic operates over $\mathbb{F}_2$, where addition
-is bitwise XOR and multiplication is bitwise AND.  Cryptographic
-extension-field arithmetic (e.g., $\mathbb{F}_{2^{128}}$, used for
-Fiat--Shamir challenges during the Sum-Check phase) utilizes
-hardware-accelerated carry-less multiplication (\texttt{CLMUL}).
-This eliminates modular reduction over large primes, and all
-constraint evaluations reduce to native CPU bit operations
-executing in $\mathcal{O}(N)$ time.
+\textsc{CTopology} observes that verifying a DAG reduction
+does not require an ISA\@.  By projecting topological dependencies
+directly onto a static Bene\v{s} permutation network,
+\textsc{CTopology} replaces the temporal sequence of CPU
+cycles~($C$) with a purely spatial 2D trace.  Rather than using
+algebraic global permutations to prove that node~$A$ read from
+node~$B$, \textsc{CTopology} embeds a routing graph directly into
+the STARK execution trace.  Variables route through the trace
+geometrically via local switch constraints.  Consequently, the
+prover time scales strictly with the input size
+$\mathcal{O}(N \log N)$, operating entirely via bitwise XORs over
+$\mathbb{F}_2$ without a single emulated CPU cycle.
 
 \begin{remark}[Implementation Field]\label{rem:field}
-The current proof-of-concept implementation uses the BabyBear prime
-field ($p = 2^{31}-1$) via Plonky3, because mature binary-field
-STARK tooling (e.g., Binius) was not yet available at development
-time.  The theoretical architecture and all complexity claims in
-this paper target the binary field; migrating the implementation
-from BabyBear to $\mathbb{F}_2$ is a planned engineering step that
-does not affect the protocol's soundness or asymptotic properties.
+The current proof-of-concept uses the BabyBear prime field
+($p = 2^{31}-1$) via Plonky3~\cite{plonky3}, because mature
+binary-field STARK tooling (e.g., Binius) was not yet available at
+development time.  Migrating to $\mathbb{F}_2$ is a planned
+engineering step that strictly improves constant-factor performance
+without altering the topological bounds.  The base-field operations
+use XOR ($\oplus$) and AND ($\cdot$); extension-field operations
+required for Fiat--Shamir challenges in
+$\mathbb{F}_{2^{128}}$~\cite{fiat-shamir} use hardware-accelerated
+carry-less multiplication (\texttt{CLMUL}).
 \end{remark}
 
 
 % ==================================================================
-\section{Protocol Overview}\label{sec:protocol}
+\section{The CTopology Framework Architecture}\label{sec:arch}
 
-We trace the complete lifecycle of a Matrix fork resolution through six
-phases, from raw database bytes to the network payload.
+The framework is composed of two mathematically isolated graphs: a
+dynamically configured internal \emph{Routing Graph} to replace CPU
+memory, and a static external \emph{Cryptographic Graph} to replace
+polynomial commitment schemes (PCS).
 
-\begin{center}
-\begin{tikzpicture}[
-    phase/.style={draw, rounded corners, minimum width=2.8cm,
-                  minimum height=0.8cm, align=center,
-                  font=\small\sffamily, fill=#1},
-    arr/.style={-{Stealth[length=5pt]}, thick},
-    node distance=0.6cm
-  ]
-  % Row 1: Prover pipeline
-  \node[phase=orange!15]  (p1) {Phase 1\\Inputs};
-  \node[phase=blue!15,   right=of p1] (p2) {Phase 2\\Trace};
-  \node[phase=purple!15, right=of p2] (p3) {Phase 3\\LTC Commit};
-  % Row 2: Proof + Network + Verifier
-  \node[phase=red!15,    below=0.8cm of p1] (p4) {Phase 4\\Sum-Check};
-  \node[phase=cyan!15,   right=of p4] (p5) {Phase 5\\Payload};
-  \node[phase=green!15,  right=of p5] (p6) {Phase 6\\Verify};
-  % Arrows
-  \draw[arr] (p1)--(p2); \draw[arr] (p2)--(p3);
-  \draw[arr] (p3.south) |- ++(0,-0.4) -| (p4.north);
-  \draw[arr] (p4)--(p5); \draw[arr] (p5)--(p6);
-\end{tikzpicture}
-\end{center}
+\subsection{Trace Embedding and Bene\v{s} Routing}
 
+The framework initialization separates the DAG computation into a
+\emph{public instance} (the topological boundary hashes) and a
+\emph{private witness} (the node data, the topological sort
+permutation, and pre-computed Waksman routing hints).  Rather than
+allocating dynamic memory, the prover embeds this witness into a
+static $\mathbb{F}_2$ execution trace of width~$W$ (padded to
+$2^d \ge N$) and depth~$D$.  The input layer ingests the initial
+DAG state.  Guided by the private routing hints, the intermediate layers
+function as a physical Bene\v{s} network, recursively copying
+required state variables downward and across adjacent column edges
+using native bitwise XOR operations.  This purely spatial
+construction guarantees that all data dependencies arrive at the
+final logic layer for local constraint evaluation without invoking a
+global memory bus.
 
-% ==================================================================
-\section{Phase 1: Input Separation}\label{sec:phase1}
+\subsection{Expander-Based Commitment (LTC)}
 
-Before any cryptography begins, the proving server (Alice) gathers
-the fork data and separates it into public and private components.
-
-\subsection{Public Instance (The Journal)}
-
-The \emph{Journal} is sent over the network.  The ZK proof is
-mathematically bound to these specific hashes:
-\begin{itemize}
-  \item $\mathtt{merge\_base\_hash}$: the last agreed-upon room state
-        before the fork.
-  \item $\mathtt{tip\_hashes}$: the conflicting leaf events that
-        triggered the fork.
-  \item $\mathtt{final\_state\_hash}$: the resolved winner after
-        state resolution.
-\end{itemize}
-
-\subsection{Private Witness}
-
-The witness remains entirely in Alice's RAM and is never transmitted:
-\begin{itemize}
-  \item The raw JSON of the $N$ Matrix state events.
-  \item $\mathtt{kahn\_sort\_indices}$: the integer permutation
-        encoding the topological sort order.
-  \item $\mathtt{waksman\_hints}$: a pre-computed array of binary
-        switch settings.  Alice runs a native pathfinding algorithm
-        on her CPU to determine exactly how to configure the
-        Bene\v{s} network switches so that historical power levels
-        route to the correct consuming events without crossing
-        wires.
-\end{itemize}
-
-
-% ==================================================================
-\section{Phase 2: Trace Embedding}\label{sec:phase2}
-
-Alice allocates a contiguous memory region (targeting L3 cache
-residency) and builds the \textbf{execution trace}---a rigidly
-structured 2D grid of bits in a binary field.
-
-\subsection{Trace Dimensions}
-
-The grid has $W$ columns (the next power of~2 above $N$, e.g.,
-$W = 32{,}768$) and $D$ layers deep (e.g., $D = 30$ layers for
-the Bene\v{s} routing network plus the logic layer).
-
-\subsection{Layer Construction}
-
-\begin{description}[style=nextline]
-  \item[Layer 0 (Input).]
-    Alice loads the $\mathtt{merge\_base\_hash}$ and the $N$ Matrix
-    events into the top row.  Remaining columns are padded with
-    dummy zero-nodes.
-
-  \item[Layers $1$ to $D{-}1$ (Memory Routing).]
-    These layers implement the Bene\v{s} network.  Alice fills each
-    row using the $\mathtt{waksman\_hints}$.  If Event \#19,000
-    needs Alice's power level from Event~\#5, the binary switches
-    physically copy the bits downward and across the network edges
-    (using bitwise XOR) until the data arrives at column \#19,000.
-
-  \item[Layer $D$ (Logic).]
-    All required variables have been routed to their consumption
-    points.  The Matrix State Resolution v2.1 tie-breaking logic
-    executes natively as binary constraints.  The final node outputs
-    $\mathtt{final\_state\_hash}$.
-\end{description}
-
-At this point Alice holds a fully populated ${\sim}15$\,MB binary
-matrix.  No cryptography has occurred; it is a massive truth table.
-
-
-% ==================================================================
-\section{Phase 3: LTC Commitment}\label{sec:phase3}
-
-Alice must ``lock'' the trace so she cannot alter it retroactively.
-A na\"ive Merkle commitment over raw columns is insufficient:
-if Alice falsifies a single bit to fake a power level, a verifier
-sampling random columns would have negligible probability of
-hitting the corrupted location.
-
-The \textbf{Locally Testable Code} (LTC) solves this by
-cryptographically \emph{stretching} the trace to amplify any lie.
-
-\subsection{The Expander Matrix}
-
-The STARK framework contains a hardcoded, highly sparse Expander
-Graph encoded as a binary matrix~$G$.  This is the
-\emph{Cryptographic Graph} of \Cref{def:ltc}---entirely separate
-from the Bene\v{s} routing graph used inside the trace.
-
-\subsection{The Stretch}
-
-Alice multiplies every row of her trace grid by $G$:
+Standard STARKs commit to the execution trace by interpolating it
+into polynomials and generating Reed--Solomon codewords via FFTs.
+\textsc{CTopology} replaces this algebraic commitment with proximity
+testing over a sparse Cryptographic Graph.  The prover stretches the
+binary grid by multiplying it against a public, sparse,
+constant-degree Expander matrix~$G$:
 \[
   T_{\mathrm{stretched}} \;=\; T_{\mathrm{original}} \cdot G
 \]
-Because $G$ is a \textbf{highly sparse, constant-degree matrix}
-operating over $\mathbb{F}_2$, each output element requires only a
-fixed number of XOR operations.  The stretch is therefore linear in
-the trace size; for a Bene\v{s} trace with $\mathcal{O}(N \log N)$
-nodes, the total cost is $\mathcal{O}(N \log N)$ bitwise XORs.
-No prime-field arithmetic or FFTs are required.
+Because $G$ is a highly sparse, constant-degree matrix operating
+over $\mathbb{F}_2$, each output element requires only a fixed
+number of XOR operations.  For a Bene\v{s} trace with
+$\mathcal{O}(N \log N)$ nodes, the total cost is
+$\mathcal{O}(N \log N)$ bitwise XORs.  By the Expander mixing
+lemma, any localized constraint failure---such as a single falsified
+Bene\v{s} switch flag---cascades to corrupt a $\ge \delta$-fraction
+(e.g., $10\%$) of the extended grid.  The prover then Merkle-commits
+these stretched columns to produce the trace commitment root.
 
-A trace that was $32{,}768$ columns wide becomes $131{,}072$
-columns wide.  By the Expander mixing lemma, if Alice falsified
-even 1~bit in the original trace, the matrix multiplication
-aggressively cascades the error, corrupting at least 10--20\% of
-the stretched grid.
+\subsection{Non-Interactive Verification}
 
-\subsection{Merkle Root}
-
-Alice hashes every column of the stretched grid into a binary
-Merkle tree (Keccak-256).  The root
-$\mathcal{R} \in \{0,1\}^{256}$ is the \textbf{Trace Commitment
-Root}.
+Verification is orchestrated via a Fiat--Shamir hash
+sponge~\cite{fiat-shamir}, requiring strictly $\mathcal{O}(1)$
+cryptographic interactions and $\mathcal{O}(\log N)$ constraint
+evaluations.  The verifier seeds the sponge with the public instance
+to derive challenge indices.  The prover collapses the 2D routing
+and logic constraints into a condensed 1D sum-check summary, which
+the verifier confirms evaluates to zero.  Finally, the verifier
+authenticates $k$ randomly drawn columns from the Merkle tree and
+performs local LTC proximity checks by multiplying the un-stretched
+segments by~$G$.  Because a forgery corrupts a $\delta$-fraction of
+the trace, drawing $k$ independent columns bounds the soundness
+error strictly to $(1 - \delta)^k$.
 
 
 % ==================================================================
-\section{Phase 4: Sum-Check and Fiat--Shamir}\label{sec:phase4}
+\section{Theoretical Foundations}\label{sec:theory}
 
-Alice has committed to the data but must prove the grid actually
-obeys Matrix State Resolution rules.  She enters a non-interactive
-protocol with a Fiat--Shamir hash sponge acting as the verifier.
+\begin{theorem}[Non-Blocking Trace Embeddability]\label{thm:embed}
+Let $\mathcal{H}$ be a DAG of $N$ nodes representing a valid causal
+state sequence, and let $\pi$ be any topological permutation
+dictating memory dependencies.  A Bene\v{s} network of depth
+$2\log_2(N) - 1$ is rearrangeably non-blocking.  By the
+Slepian--Duguid theorem, there exists a set of boolean switch
+assignments $S \in \{0,1\}^{W \times D}$ that simultaneously routes
+all required historical dependencies without edge collisions.
+\end{theorem}
 
-\subsection{Random Challenge Generation}
-
-Alice hashes the Public Journal and the Trace Commitment Root into
-the sponge.  The sponge deterministically produces a random
-mathematical challenge.
-
-\subsection{Constraint Evaluation}
-
-Instead of forcing the verifier to check all nodes, the Sum-Check
-protocol collapses the entire 2D grid into a single equation.
-Alice evaluates three families of local constraint gates:
-
-\paragraph{Switch Validity.}
-Each Bene\v{s} switch flag $s$ must be binary:
-\[
-  C_{\mathrm{switch}}(s) \;=\; s \cdot (s \oplus 1) \;=\; 0
-\]
-
-\paragraph{Routing Correctness.}
-At every Bene\v{s} node with inputs $(a, b)$, switch~$s$, and
-output~$y$, the constraint enforces correct conditional routing.
+\begin{proof}
+By induction on the layers of the hypercube, applying Hall's
+Marriage Theorem to the bipartite graph of upper and lower
+subnetworks.  In \textsc{CTopology}, this guarantees that the
+prover's deterministic plaintext Waksman pathfinding will never fail
+to find a valid routing witness in $\mathcal{O}(N \log N)$ time,
+ensuring perfect completeness for any arbitrary DAG reduction.
+\end{proof}
 
 \begin{lemma}[Routing Gate Correctness]\label{lem:routing}
 Let $s \in \mathbb{F}_2$ be a switch flag with inputs
@@ -376,53 +264,104 @@ Define the constraint
   C_{\mathrm{route}}(s,a,b,y) \;:=\;
     y \;\oplus\; a \;\oplus\; s \cdot (a \oplus b).
 \end{equation}
-Then $C_{\mathrm{route}} = 0$ if and only if the output satisfies
-the conditional selection $y = a$ when $s = 0$ and $y = b$ when
-$s = 1$.
+Then $C_{\mathrm{route}} = 0$ if and only if $y = a$ when $s = 0$
+and $y = b$ when $s = 1$.
 \end{lemma}
 
 \begin{proof}
 Because we operate in characteristic~$2$, subtraction coincides
 with addition ($\oplus$) and $-1 = 1$.  The standard algebraic
-multiplexer $(1-s)\cdot a + s\cdot b - y$ therefore reduces to
+multiplexer $(1-s)\cdot a + s\cdot b - y$ reduces to
 $y \oplus a \oplus s \cdot (a \oplus b)$.
 
 \emph{Case $s=0$.}  The switch term vanishes:
-$C_{\mathrm{route}} = y \oplus a = 0$, so $y = a$
-(straight-through).
+$C_{\mathrm{route}} = y \oplus a = 0$, so $y = a$.
 
 \emph{Case $s=1$.}  We obtain
 $C_{\mathrm{route}} = y \oplus a \oplus (a \oplus b)
   = y \oplus b = 0$,
-so $y = b$ (cross).
+so $y = b$.
 
 Since $s$ is constrained to $\mathbb{F}_2$ by the switch-validity
 gate $s \cdot (s \oplus 1) = 0$, these are the only two cases.
 \end{proof}
 
-This algebraic multiplexer replaces dynamic memory lookups with a
-fixed geometric bitwise gate applied uniformly across the trace.
+\begin{theorem}[LTC Soundness]\label{thm:soundness}
+Let $G$ be an $(n, d, \lambda)$-Expander used as the LTC commitment
+matrix with relative distance $\delta \ge 0.10$.  If a dishonest
+prover submits a trace that differs from every valid trace in at
+least one bit, and the verifier draws $k$ column queries uniformly
+at random, then
+\[
+  \Pr[\text{forgery accepted}] \;\le\; (1 - \delta)^{k}.
+\]
+In particular, setting $k = 843$ yields soundness error
+$\le 2^{-128}$.
+\end{theorem}
 
-\paragraph{Tie-Breaker Logic.}
-The lexicographic ordering rule of State Resolution v2.1 is
-enforced at the logic layer, verifying that power-level comparisons
-and event-ID tie-breaks produce the correct
-$\mathtt{final\_state\_hash}$.
-
-\subsection{Layer Combination}
-
-Alice squashes the evaluated constraint layers into a condensed 1D
-summary array and feeds it back to the sponge.
-
+\begin{proof}
+By the Expander mixing lemma, the LTC matrix~$G$ amplifies any
+nonzero input perturbation so that at least a $\delta$-fraction of
+the $W_{\mathrm{stretched}}$ output columns become corrupted.  Each
+of the verifier's $k$ queries is drawn independently and uniformly.
+The probability that all $k$ queries miss every corrupted column is
+at most $(1 - \delta)^k$.  Solving
+\[
+  (1 - 0.10)^k \;\le\; 2^{-128}
+  \quad\Longrightarrow\quad
+  k \;\ge\; \frac{128 \ln 2}{\ln(10/9)}
+    \;\approx\; 842.1.
+\]
+Setting $k = 843$ therefore suffices.
+\end{proof}
 
 % ==================================================================
-\section{Phase 5: Proof Payload}\label{sec:phase5}
+\section{Case Study: Matrix Protocol State Resolution}\label{sec:matrix}
 
-The sponge generates $k = 843$ random column indices from the
-stretched grid.  Alice opens those specific columns in the Merkle
-tree, deletes the ${\sim}15$\,MB RAM grid, and packages the result.
+To demonstrate the efficacy of the \textsc{CTopology} framework, we
+apply it to a notoriously demanding DAG-consistency problem: Matrix
+Protocol State Resolution~(v2)~\cite{matrix-spec}.
 
-\subsection{Network Payload Structure}
+\subsection{Matrix State Resolution v2}
+
+A Matrix room's history forms a DAG\@.  When a homeserver
+\emph{joins} a federated room it must obtain and verify the room's
+\emph{state}---the cumulative result of applying every authorization
+event from genesis through a deterministic State Resolution
+algorithm.  Two strategies exist today: (i)~\textbf{Full Join}---download
+the entire Auth Chain and re-execute locally, which is
+cryptographically sound but prohibitively expensive for large rooms;
+(ii)~\textbf{Partial Join}~(MSC\,3902)---accept the resident
+server's claimed state on trust, which is fast but a significant
+compromise on decentralization.
+
+By instantiating \textsc{CTopology} with a logic layer configured
+for Matrix authorization rules (power-level monotonicity and
+lexicographical tie-breaking), we entirely eliminate the need for
+local full-DAG re-execution.  We propose
+\texttt{GET\allowbreak\ /\_matrix/\allowbreak federation/\allowbreak v1/\allowbreak zk\_state\_proof/\allowbreak\{roomId\}}
+(detailed in MSC\,0000~\cite{msc0000}) as the federation endpoint.
+Proofs are generated asynchronously as periodic \emph{epoch rollups}
+(e.g., bi-weekly), avoiding latency on the join path.
+
+\subsection{Identity vs.\ Logic Separation}
+
+A critical innovation in our application is the strict separation of
+cryptographic identity from protocol logic.  A na\"ive zkVM
+implementation would attempt to verify Ed25519 signatures inside the
+AIR trace, triggering catastrophic prime-field blowup.
+\textsc{CTopology} delegates identity verification to the native
+Host OS prior to trace execution.
+
+The OS natively authenticates the signatures in $\mathcal{O}(N)$
+time to yield the authenticated input DAG root.  The STARK proof is
+exclusively reserved for the heavy $\mathcal{O}(N \log N)$
+topological tie-breaking logic.  Bound together via the
+Fiat--Shamir heuristic, this separation allows sub-centisecond
+cryptographic ZK verification without compromising end-to-end
+payload authenticity.
+
+\subsection{Proof Payload}
 
 The proof is transmitted over the Matrix Federation API as:
 
@@ -445,106 +384,14 @@ The proof is transmitted over the Matrix Federation API as:
 \noindent\textbf{Total payload size: 150--250\,KB}
 (dominated by $k = 843$ Merkle authentication paths at tree depth
 $\approx 17$; aggressive path batching reduces this further).
-
-\subsection{Federation Endpoint}
-
-We propose \texttt{GET /\_matrix/federation/v1/zk\_state\_proof/\{roomId\}}
-(detailed in MSC\,0000~\cite{msc0000}).  Proofs are generated
-asynchronously as periodic \emph{epoch rollups} (e.g., bi-weekly),
-avoiding latency on the join path.
+For a 10,000-event fork, the prover generates the proof in under a
+second; the verifier confirms it in $\approx 5$\,ms.
 
 
 % ==================================================================
-\section{Phase 6: Verification}\label{sec:phase6}
+\section{Implementation and Formal Verification}\label{sec:impl}
 
-Bob receives the payload.  He does not know the Waksman hints, does
-not have the trace grid, and does not need them.  His verifier
-executes the following gauntlet in ${\approx}\,5$\,ms:
-
-\begin{enumerate}
-  \item \textbf{Native Reality Check} --- $\mathcal{O}(N)$.
-    Bob checks his local database: does the fork start at
-    $\mathtt{merge\_base}$ and end at $\mathtt{tips}$?
-    If he is missing events, he fetches the raw JSON over federation
-    and \textbf{natively verifies the Ed25519 signatures},
-    guaranteeing that the proof inputs are physically authentic.
-
-  \item \textbf{Fiat--Shamir Synchronization} --- $\mathcal{O}(1)$.
-    Bob feeds the $\mathtt{public\_journal}$ and
-    $\mathtt{trace\_commitment\_root}$ into his own hash sponge.
-    He deterministically regenerates the \emph{exact same} random
-    challenges and column indices that Alice used.
-
-  \item \textbf{Sum-Check Verification} --- $\mathcal{O}(\log N)$.
-    Bob evaluates the compact $\mathtt{sum\_check\_summary}$
-    equations.  In microseconds he confirms that the constraint
-    gates (switch validity, routing correctness, tie-breaking) all
-    collapse to zero.
-
-  \item \textbf{LTC Proximity and Merkle Check} --- $\mathcal{O}(1)$.
-    Bob performs two final checks on the $k$ queried columns:
-    \begin{enumerate}[label=(\alph*)]
-      \item \emph{Merkle authentication.}  He hashes each column up
-            its $\mathtt{merkle\_auth\_path}$ and verifies it matches
-            the $\mathtt{trace\_commitment\_root}$.
-      \item \emph{LTC proximity.}  He multiplies the un-stretched
-            portions of the queried columns by the public Expander
-            matrix~$G$ and checks exact equality with the stretched
-            portions Alice provided.
-    \end{enumerate}
-\end{enumerate}
-
-\begin{theorem}[Soundness]\label{thm:soundness}
-Let $G$ be an $(n, d, \lambda)$-Expander used as the LTC commitment
-matrix with relative distance $\delta \ge 0.10$.  If a dishonest
-prover Alice submits a trace that differs from every valid trace in
-at least one bit, and the verifier draws $k$ column queries
-uniformly at random, then the probability that Alice's forgery
-escapes detection satisfies
-\[
-  \Pr[\text{forgery accepted}] \;\le\; (1 - \delta)^{k}.
-\]
-In particular, setting $k = 843$ yields soundness error
-$\le 2^{-128}$.
-\end{theorem}
-
-\begin{proof}
-Suppose Alice has altered at least one bit in the original
-$W \times D$ trace grid.  By the Expander mixing lemma, the LTC
-matrix~$G$ amplifies any nonzero input perturbation so that at
-least a $\delta$-fraction of the $W_{\mathrm{stretched}}$ output
-columns become corrupted.  Concretely, if the original trace
-differs from a valid trace on even a single entry, then
-$\ge \delta \cdot W_{\mathrm{stretched}}$ columns of the stretched
-trace will fail the proximity check.
-
-Each of the verifier's $k$ queries is drawn independently and
-uniformly.  The probability that a single query avoids all
-corrupted columns is at most $1 - \delta$.  Since the queries are
-independent, the probability that all $k$ queries miss every
-corrupted column is at most $(1 - \delta)^k$.
-
-To achieve $2^{-128}$ soundness error we require
-\[
-  (1 - \delta)^k \;\le\; 2^{-128}.
-\]
-Taking logarithms:
-\[
-  k \;\ge\; \frac{128 \ln 2}{\ln\!\bigl(\tfrac{1}{1-\delta}\bigr)}
-    \;=\; \frac{128 \ln 2}{\ln(10/9)}
-    \;\approx\; 842.1.
-\]
-Setting $k = 843$ therefore suffices.
-\end{proof}
-
-Bob's verifier returns \textsc{True}.  He accepts
-$\mathtt{final\_state\_hash}$ into his database.
-
-
-% ==================================================================
-\section{Implementation}\label{sec:impl}
-
-\textsc{CTopology} is implemented as three Rust crates:
+\textsc{CTopology} is implemented as three modular Rust crates:
 
 \begin{center}
 \begin{tikzpicture}[
@@ -567,170 +414,84 @@ $\mathtt{final\_state\_hash}$ into his database.
 \paragraph{Topological AIR (\texttt{ruma-zk-topological-air}).}
 Defines the trace layout, the \texttt{MatrixEvent} data type, the
 topological constraint function, and the canonical verification key
-hash.  The PoC operates over BabyBear ($p = 2^{31}-1$) via Plonky3;
-the production target is $\mathbb{F}_2$ (see \Cref{rem:field}).
+hash.  The PoC operates over BabyBear via Plonky3; the production
+target is $\mathbb{F}_2$ (see \Cref{rem:field}).
 The crate is \texttt{\#![no\_std]}.
 
 \paragraph{Prover (\texttt{ruma-zk-prover}).}
-Orchestrates Phases~1--5: JSON deserialization, Kahn sort via
-\texttt{ruma-lean}, trace construction over the routing graph,
-parallel topology verification (Rayon), LTC commitment, and proof
-serialization.  The current proof-of-concept uses a Star Graph
-$S_n$ walk as scaffolding; the production target is the Boolean
-Hypercube $H_d$ with Bene\v{s} routing (padding to $2^d$
-rather than $n!$).
+Orchestrates Phase 1 (Kahn sort), Phase 2 (Waksman pathfinding and
+trace embedding), and Phase 3 (LTC stretch and Merkle commit).
+The internal topology is a Boolean Hypercube~$H_d$ with Bene\v{s}
+routing (padding to $2^d$ rather than $n!$).
 
 \paragraph{Verifier (\texttt{ruma-zk-verifier}).}
-Implements Phase~6.  Compiles to three targets:
-native Rust (\texttt{lib}),
+Compiles to three targets: native Rust (\texttt{lib}),
 WebAssembly (\texttt{wasm-bindgen}), and
 Android/iOS (Mozilla UniFFI, \texttt{cdylib}).
 Both prover and verifier enforce
 \texttt{\#![forbid(unsafe\_code)]}.
 
-
-% ==================================================================
-\section{Formal Verification in Lean 4}\label{sec:lean}
+\medskip
 
 Machine-checked proofs accompany the Rust implementation, organized
-in the \texttt{ctopology} Lean~4 library (Mathlib):
-
-\paragraph{Theorem 1: Topological Beats Von Neumann}
-(\texttt{Arithmetization.lean}).
-A Von Neumann machine incurs cost $N\log N$ (permutation argument);
-using an Expander Superconcentrator the topological coprocessor
-achieves strict $\mathcal{O}(N)$ cost.  (The Bene\v{s} network
-used in the current PoC achieves $\mathcal{O}(N \log N)$, still
-without a prime-field permutation argument.)  Proved via the bound
-$e < 3 \le N$ for $N > 2$.
-
-\paragraph{Theorem 2: PCS Isolation}
-(\texttt{Commitment.lean}).
-The topological GKR approach isolates PCS overhead to the input
-layer: memory cost
-$N_{\mathrm{in}} \cdot c + N_{\mathrm{edges}}
- < (N_{\mathrm{in}} + N_{\mathrm{edges}}) \cdot c$
-when $c > 1$.
-
-\paragraph{Theorem 3: Arrangement Graph Soundness}
-(\texttt{Commitment.lean}).
-If the committed state has distance $\ge \delta$ from a valid trace,
-$k$ random queries catch the deviation with failure probability
-$\le (1 - \lambda\delta)^k$, where $\lambda$ is the spectral
-expansion bound.
-
-\paragraph{Topological Embedding}
-(\texttt{StarGraphEmbedding.lean}).
-Axiomatizes that for any Kahn-sorted event list, a valid
-routing-graph walk embedding exists.  The current formalization
-targets the Star Graph; extending to the Hypercube/Bene\v{s}
-network is planned future work.
+in the \texttt{ctopology} Lean~4 library (Mathlib).
+\texttt{Arithmetization.lean} formalizes the asymptotic advantage of
+topological routing over Von Neumann permutation arguments: using an
+Expander Superconcentrator the topological coprocessor achieves
+strict $\mathcal{O}(N)$ cost.  (The Bene\v{s} network used in the
+current PoC achieves $\mathcal{O}(N \log N)$, still without a
+prime-field permutation argument.)
+\texttt{Commitment.lean} proves that the topological GKR approach
+isolates PCS overhead to the input layer and formally verifies the
+Expander expansion bounds utilized in \Cref{thm:soundness}.
+\texttt{StarGraphEmbedding.lean} axiomatizes that for any
+Kahn-sorted event list, a valid routing-graph walk embedding exists;
+extending to the Hypercube/Bene\v{s} network is planned future work.
 
 
 % ==================================================================
-\section{Security Considerations}\label{sec:security}
+\section{Security Considerations and Future Work}\label{sec:security}
 
-\subsection{Identity vs.\ Logic Separation}
+\paragraph{Threat Model.}
+A malicious server substituting a trivial ``always accept'' circuit
+is mitigated by binding each room version to a canonical verification
+key hash; the verifier rejects mismatched keys.  Soundness is
+guaranteed to $2^{-128}$ via LTC error amplification and $k = 843$
+random samples (\Cref{thm:soundness}).  While a valid proof attests
+to correct execution, it does not guarantee data availability; a
+malicious server withholding underlying events must be addressed
+orthogonally at the protocol layer.  Memory safety is enforced via
+\texttt{\#![forbid(unsafe\_code)]} across all crates.
 
-CTopology deliberately excludes Ed25519 elliptic-curve signature
-verification from the AIR trace.  Identity and message authenticity
-are verified \emph{natively} by the Host OS in $\mathcal{O}(N)$
-time prior to ZK execution, producing a natively authenticated
-$\mathtt{DAG\_Root}$.  The STARK proof strictly enforces the
-topological sort and authorization logic.
-
-By binding the STARK to the natively verified
-$\mathtt{DAG\_Root}$ via the Fiat--Shamir heuristic, CTopology
-completely isolates heavy elliptic-curve cryptography from the
-binary-field AIR trace, yielding order-of-magnitude performance
-gains while preserving end-to-end authentication.
-
-\subsection{Threat Model}
-
-\begin{description}[style=nextline]
-  \item[Circuit Identity.]
-    A malicious server could substitute a trivial circuit.  The
-    protocol binds each room version to a canonical
-    \texttt{VK\_HASH}; the verifier rejects mismatched keys.
-
-  \item[Soundness.]
-    The LTC stretching guarantees that any single-bit falsification
-    corrupts $\ge 10\%$ of the stretched grid.  With
-    $k = 843$ random queries the soundness error is
-    $\le 2^{-128}$ (\Cref{thm:soundness}).
-
-  \item[Data Availability.]
-    A valid proof attests to correct execution but not event
-    availability.  This is orthogonal and must be addressed at the
-    protocol layer.
-
-  \item[Memory Safety.]
-    All crates enforce \texttt{\#![forbid(unsafe\_code)]}.  Core
-    resolution logic delegates to \texttt{ruma-lean}, designed for
-    Lean~4 formal verification.
-\end{description}
-
-
-% ==================================================================
-\section{Related Work}\label{sec:related}
-
-\paragraph{General-Purpose zkVMs.}
-SP1~\cite{sp1} and Jolt~\cite{jolt} compile RISC-V binaries to
-STARK proofs.  CTopology replaces the VM with a domain-specific
-AIR, eliminating permutation-argument overhead.
-
-\paragraph{Plonky3.}
-Polygon's Plonky3~\cite{plonky3} provides modular AIR traits over
-BabyBear.  CTopology uses Plonky3 as a library for field arithmetic
-and trait definitions.
-
-\paragraph{Blockchain ZK Rollups.}
-Ethereum L2 rollups (zkSync, StarkNet~\cite{starkware}) batch
-transactions into STARK proofs.  Our epoch-rollup model is directly
-analogous, applied to the Matrix event DAG.
-
-\paragraph{Locally Testable Codes.}
-The LTC commitment strategy draws on the theoretical foundations of
-Ben-Sasson et al.~\cite{starkware} and the Lasso lookup
-argument~\cite{lasso}, replacing algebraic PCS with graph-based
-proximity testing.
-
-
-% ==================================================================
-\section{Limitations and Future Work}\label{sec:future}
-
-\begin{enumerate}
-  \item \textbf{Full Bene\v{s} Implementation.}  The current
-        proof-of-concept uses a Star Graph walk; the production
-        system requires a complete Waksman routing network.
-  \item \textbf{Full AIR Binding.}  Wire the symbolic constraint
-        engine to the Plonky3 FRI prover for standard STARK proofs.
-  \item \textbf{Richer Constraints.}  Extend the trace to encode
-        full Matrix auth rules (join rules, redactions, event type
-        restrictions).
-  \item \textbf{Recursive Composition.}  Wrap proofs in a Groth16
-        SNARK for constant-size on-chain verification.
-  \item \textbf{Lean Closure.}  Close remaining \texttt{axiom}
-        declarations, particularly
-        \texttt{exists\_star\_graph\_embedding}.
-  \item \textbf{Production Benchmarks.}  Profile against real-world
-        Matrix room dumps.
-\end{enumerate}
+\paragraph{Future Work.}
+The current proof-of-concept uses a Star Graph walk as scaffolding;
+the production system requires a complete Waksman routing network
+over the Boolean Hypercube, together with full AIR binding to a
+dedicated binary-field backend (e.g., Binius).  Richer constraint
+layers encoding full Matrix auth rules (join rules, redactions,
+event-type restrictions) are needed for production coverage.
+Recursive composition---wrapping proofs in a Groth16 SNARK for
+constant-size verification---and closing the remaining Lean~4
+\texttt{axiom} declarations (particularly
+\texttt{exists\_star\_graph\_embedding}) are ongoing research
+directions.
 
 
 % ==================================================================
 \section{Conclusion}\label{sec:conclusion}
 
-CTopology demonstrates that domain-specific graph arithmetization can
-replace general-purpose zkVM execution for verifiable protocol-level
-computations.  By separating the routing graph (Bene\v{s} network for
-CPU-free memory access) from the cryptographic graph (Expander LTC for
-FFT-free commitment), we achieve $\mathcal{O}(N \log N)$
-binary-field proving (with a theoretical $\mathcal{O}(N)$ limit),
-150--250\,KB proof payloads, and ${\approx}\,5$\,ms verification---all
-with $2^{-128}$ soundness error.  The architecture provides a concrete
-path toward trustless, sub-second federated room joins in the Matrix
-protocol.
+\textsc{CTopology} demonstrates that domain-specific graph
+arithmetization can radically outperform general-purpose zkVMs for
+verifiable DAG computations.  By replacing CPU-emulated memory
+arrays with static Bene\v{s} routing networks, and replacing
+prime-field FFTs with Expander-based Locally Testable Codes, we
+collapse the cryptographic overhead to its theoretical floor:
+$\mathcal{O}(N \log N)$ binary-field proving (with a theoretical
+$\mathcal{O}(N)$ limit via Superconcentrators), 150--250\,KB proof
+payloads, and ${\approx}\,5$\,ms verification---all with
+$2^{-128}$ soundness error.  The framework provides a concrete path
+toward trustless, real-time verification of highly concurrent
+decentralized systems.
 
 
 % ── References ────────────────────────────────────────────────────

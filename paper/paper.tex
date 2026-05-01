@@ -158,6 +158,27 @@ prover time scales strictly with the input size
 $\mathcal{O}(N \log N)$, operating entirely via bitwise XORs over
 $\mathbb{F}_2$ without a single emulated CPU cycle.
 
+\begin{remark}[Asymptotic Crossover]\label{rem:crossover}
+Constant-degree superconcentrator-based Expander graphs achieve a
+theoretical $\mathcal{O}(N)$ routing cost, but the hidden constant
+is enormous: explicit constructions (e.g., zig-zag products) carry
+combinatorial overhead so large that the crossover with
+$\mathcal{O}(N \log_2 N)$ Bene\v{s} routing occurs only at input
+sizes on the order of $N \gtrsim 2^{75}$---far beyond any
+foreseeable application.  We therefore adopt the
+$\mathcal{O}(N \log N)$ Bene\v{s} network as the practical
+construction throughout this work.
+
+Conversely, while Jolt's sum-check protocol achieves strictly
+$\mathcal{O}(C)$ cryptographic cost, the per-node ISA emulation
+constant $K$ (typically $10^3$--$10^4$) ensures that
+$K \cdot N \gg N \log_2 N$ for all practical DAG sizes.  Even at
+$N = 2^{20}$ (${\approx}\,10^6$ nodes), the Jolt prover processes
+${\sim}\,10^{9}$--$10^{10}$ emulated cycles while our framework
+processes ${\sim}\,2 \times 10^{7}$ routing operations---a gap of
+two to three orders of magnitude.
+\end{remark}
+
 \begin{remark}[Implementation Field]\label{rem:field}
 The current proof-of-concept uses the BabyBear prime field
 ($p = 2^{31}-1$) via Plonky3~\cite{plonky3}, because mature
@@ -354,12 +375,16 @@ Our framework delegates identity verification to the native
 Host OS prior to trace execution.
 
 The OS natively authenticates the signatures in $\mathcal{O}(N)$
-time to yield the authenticated input DAG root.  The STARK proof is
-exclusively reserved for the heavy $\mathcal{O}(N \log N)$
-topological tie-breaking logic.  Bound together via the
-Fiat--Shamir heuristic, this separation allows sub-centisecond
-cryptographic ZK verification without compromising end-to-end
-payload authenticity.
+time to yield an authenticated input DAG root.  Concretely, the
+verifier hashes the Ed25519-verified event IDs into a Keccak-256
+digest $h_{\mathrm{auth}}$ and includes it in the public instance;
+the Fiat--Shamir sponge seeds on $h_{\mathrm{auth}}$ alongside the
+trace commitment root, cryptographically binding the
+OS-authenticated identity layer to the STARK-proven logic layer.
+The STARK proof is exclusively reserved for the heavy
+$\mathcal{O}(N \log N)$ topological tie-breaking logic.  This
+separation allows sub-centisecond cryptographic ZK verification
+without compromising end-to-end payload authenticity.
 
 \subsection{Proof Payload}
 
@@ -434,7 +459,7 @@ Both prover and verifier enforce
 \medskip
 
 Machine-checked proofs accompany the Rust implementation, organized
-in the \texttt{ctopology} Lean~4 library (Mathlib).
+in the \texttt{lean\_src/} directory of the topological-AIR crate (Mathlib).
 \texttt{Arithmetization.lean} formalizes the asymptotic advantage of
 topological routing over Von Neumann permutation arguments: using an
 Expander Superconcentrator the topological coprocessor achieves
@@ -447,6 +472,15 @@ Expander expansion bounds utilized in \Cref{thm:soundness}.
 \texttt{StarGraphEmbedding.lean} axiomatizes that for any
 Kahn-sorted event list, a valid routing-graph walk embedding exists;
 extending to the Hypercube/Bene\v{s} network is planned future work.
+The current formalization relies on six \texttt{axiom} declarations
+across the codebase: \texttt{exp\_one\_lt\_three} (numerical bound),
+\texttt{rejection\_prob\_le\_one} and
+\texttt{self\_diagnosing\_expansion} (Expander properties),
+\texttt{isStarGraphStep} and
+\texttt{exists\_star\_graph\_embedding} (routing existence), and
+\texttt{dag\_has\_zero\_in\_degree} and
+\texttt{gray\_code\_step} in the auxiliary \texttt{ruma-lean} crate.
+Closing these axioms with constructive proofs is an explicit goal.
 
 
 % ==================================================================
@@ -471,10 +505,8 @@ dedicated binary-field backend (e.g., Binius).  Richer constraint
 layers encoding full Matrix auth rules (join rules, redactions,
 event-type restrictions) are needed for production coverage.
 Recursive composition---wrapping proofs in a Groth16 SNARK for
-constant-size verification---and closing the remaining Lean~4
-\texttt{axiom} declarations (particularly
-\texttt{exists\_star\_graph\_embedding}) are ongoing research
-directions.
+constant-size verification---and closing the six remaining Lean~4
+\texttt{axiom} declarations are ongoing research directions.
 
 
 % ==================================================================

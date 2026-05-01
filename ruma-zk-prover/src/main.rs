@@ -91,7 +91,7 @@ fn main() {
     match args.command {
         Commands::Fingerprint => {
             println!("ruma-zk-prover v{}", env!("CARGO_PKG_VERSION"));
-            println!("Circuit VK_HASH: {}", ruma_zk_topological_air::VK_HASH);
+            println!("Circuit VK Hash: [pending Binius backend]");
         }
         Commands::Witness { input, limit } => {
             println!("Graph-Native STARK Witness Generator");
@@ -108,9 +108,73 @@ fn main() {
                 n_padded.trailing_zeros()
             );
 
-            // Identity permutation for now (topological sort = input order).
-            let perm: Vec<usize> = (0..n_padded).collect();
+            // ── DA Merkle Root (deterministic event-set commitment) ──
+            let start = Instant::now();
+            let mut event_ids: Vec<String> = events.iter().map(|e| e.event_id.clone()).collect();
+            ruma_zk_prover::merkle::canonical_sort(&mut event_ids);
+            let da_root = ruma_zk_prover::merkle::build_merkle_root(&event_ids);
+            let da_time = start.elapsed();
+            println!("  DA root:       {} ({:?})", hex::encode(da_root), da_time);
 
+            // ── Kahn topological sort (via ruma-lean) ──
+            let start = Instant::now();
+            let mut lean_map = std::collections::HashMap::new();
+            for ev in events.iter() {
+                lean_map.insert(
+                    ev.event_id.clone(),
+                    ruma_lean::LeanEvent {
+                        event_id: ev.event_id.clone(),
+                        event_type: ev.event_type.clone(),
+                        state_key: ev.state_key.clone(),
+                        power_level: ev.power_level as i64,
+                        prev_events: ev.prev_events.clone(),
+                        auth_events: ev.prev_events.clone(),
+                        ..Default::default()
+                    },
+                );
+            }
+            let sorted_ids = ruma_lean::lean_kahn_sort(&lean_map, ruma_lean::StateResVersion::V2);
+            let kahn_time = start.elapsed();
+            let acyclic = sorted_ids.len() == n_events;
+            if !acyclic {
+                eprintln!(
+                    "  [WARN] DAG contains cycles -- {} of {} events sorted",
+                    sorted_ids.len(),
+                    n_events
+                );
+            }
+            println!("  Kahn sort:     {:?} (acyclic={})", kahn_time, acyclic);
+
+            // ── State Resolution (via ruma-lean) ──
+            let start = Instant::now();
+            let unconflicted = std::collections::BTreeMap::new();
+            let resolved = ruma_lean::resolve_lean(
+                unconflicted,
+                lean_map.clone(),
+                ruma_lean::StateResVersion::V2,
+            );
+            let resolve_time = start.elapsed();
+            println!(
+                "  State res:     {:?} ({} resolved state entries)",
+                resolve_time,
+                resolved.len()
+            );
+
+            // Build permutation from sorted IDs
+            let id_to_idx: std::collections::HashMap<&str, usize> = events
+                .iter()
+                .enumerate()
+                .map(|(i, e)| (e.event_id.as_str(), i))
+                .collect();
+            let mut perm: Vec<usize> = sorted_ids
+                .iter()
+                .filter_map(|id| id_to_idx.get(id.as_str()).copied())
+                .collect();
+            for i in perm.len()..n_padded {
+                perm.push(i);
+            }
+
+            // ── Benes routing ──
             let start = Instant::now();
             let network = BenesNetwork::from_permutation(&perm);
             let waksman_time = start.elapsed();
@@ -121,6 +185,7 @@ fn main() {
                 n_padded / 2
             );
 
+            // ── Trace build ──
             let inputs: Vec<GF2> = (0..n_padded)
                 .map(|i| if i < n_events { GF2::ONE } else { GF2::ZERO })
                 .collect();
@@ -137,12 +202,21 @@ fn main() {
             );
 
             if violations == 0 {
-                println!("  ✓ All routing constraints satisfied");
+                println!("  [ok] All routing constraints satisfied");
             } else {
-                println!("  ✗ {} constraint violations!", violations);
+                println!("  [FAIL] {} constraint violations!", violations);
             }
 
-            println!("\n  [Witness ready — awaiting Binius prover backend]");
+            // ── Resolved State Hash ──
+            let resolved_ids: Vec<String> = resolved.values().cloned().collect();
+            let state_root = ruma_zk_prover::merkle::build_merkle_root(&resolved_ids);
+
+            println!("\n  Public Journal:");
+            println!("    da_root:    {}", hex::encode(da_root));
+            println!("    state_root: {}", hex::encode(state_root));
+            println!("    n_events:   {}", n_events);
+            println!("    n_resolved: {}", resolved.len());
+            println!("\n  [Witness ready -- awaiting Binius prover backend]");
         }
     }
 }

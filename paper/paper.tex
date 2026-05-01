@@ -213,7 +213,16 @@ $2^d \ge N$) and depth~$D$.  The input layer ingests the initial
 DAG state.  Guided by the private routing hints, the intermediate layers
 function as a physical Bene\v{s} network, recursively copying
 required state variables downward and across adjacent column edges
-using native bitwise XOR operations.  This purely spatial
+using native bitwise XOR operations.  A Bene\v{s} network for $N$
+inputs consists of $2\log_2 N - 1$ layers of $N/2$ switches each,
+totalling $(2\log_2 N - 1) \cdot N/2 = \mathcal{O}(N \log N)$
+routing constraints.  Each switch enforces a single local algebraic
+constraint over $\mathbb{F}_2$:
+\begin{equation}\label{eq:switch}
+  \texttt{out} = a \oplus s \cdot (a \oplus b),
+\end{equation}
+where $s \in \{0,1\}$ is the private switch state.
+This purely spatial
 construction guarantees that all data dependencies arrive at the
 final logic layer for local constraint evaluation without invoking a
 global memory bus.
@@ -365,26 +374,37 @@ as the federation endpoint.
 Proofs are generated asynchronously as periodic \emph{epoch rollups}
 (e.g., bi-weekly), avoiding latency on the join path.
 
-\subsection{Identity vs.\ Logic Separation}
+\subsection{Identity vs.\ Logic Separation}\label{sec:identity}
 
-A critical innovation in our application is the strict separation of
-cryptographic identity from protocol logic.  A na\"ive zkVM
-implementation would attempt to verify Ed25519 signatures inside the
-AIR trace, triggering catastrophic prime-field blowup.
-Our framework delegates identity verification to the native
-Host OS prior to trace execution.
+A critical design constraint is the strict separation of cryptographic
+identity from protocol logic.  A na\"ive zkVM implementation would
+attempt to verify Ed25519 signatures inside the AIR trace,
+triggering catastrophic non-native arithmetic blowup: Ed25519
+operates over a 255-bit prime field ($p = 2^{255} - 19$), while
+the STARK trace operates entirely in $\mathbb{F}_2$.  Arithmetizing
+a single scalar multiplication would require $\sim$500{,}000
+constraints, dwarfing the $\sim$1{,}000{,}000 constraints needed for
+the entire 43{,}543-event routing network.
 
-The OS natively authenticates the signatures in $\mathcal{O}(N)$
-time to yield an authenticated input DAG root.  Concretely, the
-verifier hashes the Ed25519-verified event IDs into a Keccak-256
-digest $h_{\mathrm{auth}}$ and includes it in the public instance;
-the Fiat--Shamir sponge seeds on $h_{\mathrm{auth}}$ alongside the
-trace commitment root, cryptographically binding the
-OS-authenticated identity layer to the STARK-proven logic layer.
-The STARK proof is exclusively reserved for the heavy
-$\mathcal{O}(N \log N)$ topological tie-breaking logic.  This
-separation allows sub-centisecond cryptographic ZK verification
-without compromising end-to-end payload authenticity.
+Our framework delegates signature verification to the
+\textbf{prover's native Host OS}, which authenticates \emph{all}
+events in the historical auth chain using optimized CPU instructions.
+The prover then computes $h_{\mathrm{auth}} =
+\text{Keccak-256}(\texttt{event\_id}_1 \| \sigma_1 \| \cdots
+\| \texttt{event\_id}_n \| \sigma_n)$ over the verified events
+and commits it as a public input in the Fiat--Shamir transcript.
+The STARK proof mathematically guarantees: \emph{``state resolution
+was executed correctly on a DAG of events that had valid signatures.''}
+
+The \textbf{verifier} (joining guest server) does \emph{not} receive
+the auth chain---that is the entire value proposition.
+The verifier receives only the current state events and the proof.
+It checks Ed25519 signatures on the received state events (a cheap
+$\mathcal{O}(N)$ pre-check on a small subset), then validates
+the proof's \texttt{da\_root} against the federation via multi-server
+attestation (\Cref{sec:bench}).  If the honest minority of federation
+peers agrees on the same \texttt{da\_root}, the hidden auth chain
+is confirmed complete without the verifier ever downloading it.
 
 \subsection{Proof Payload}
 
@@ -393,9 +413,11 @@ The proof is transmitted over the Matrix Federation API as:
 \begin{lstlisting}[frame=single,basicstyle=\ttfamily\footnotesize]
 {
   "public_journal": {
-    "merge_base": "0xABCD...",
-    "tips": ["0x1234...", "0x5678..."],
-    "final_state": "0x9XYZ..."
+    "da_root":    "0xc29ab9db...",
+    "state_root": "0x259df515...",
+    "h_auth":     "0x...",
+    "n_events":   43543,
+    "n_resolved": 43543
   },
   "zk_proof_bytes": {
     "trace_commitment_root": "0xROOT...",
@@ -481,6 +503,51 @@ across the codebase: \texttt{exp\_one\_lt\_three} (numerical bound),
 \texttt{dag\_has\_zero\_in\_degree} and
 \texttt{gray\_code\_step} in the auxiliary \texttt{ruma-lean} crate.
 Closing these axioms with constructive proofs is an explicit goal.
+
+
+\subsection{Empirical Benchmark: \texttt{\#community:matrix.org}}\label{sec:bench}
+
+To validate the practical efficiency of the framework, we executed the
+full witness generation pipeline against the state snapshot of
+\texttt{\#community:matrix.org}, a heavily trafficked public room
+containing 43{,}543 state events.  The pipeline performed a
+deterministic topological sort (Kahn's algorithm with
+$\S11.20.2$ tie-breaking), resolved the resulting state,
+computed the Waksman routing permutation over $N = 65{,}536$ padded
+width, and materialized the $\mathbb{F}_2$ execution trace.
+All timings are single-threaded release builds on commodity hardware
+(Intel i7-8700K, 32\,GB DDR4).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrl@{}}
+\toprule
+\textbf{Operation} & \textbf{Scale} & \textbf{Time} \\
+\midrule
+DA Merkle Root (Keccak-256) & 43{,}543 leaves & 77\,ms \\
+Kahn Topological Sort       & 43{,}543 events & 94\,ms \\
+State Resolution (v2)       & 43{,}543 entries & 131\,ms \\
+Waksman Routing ($N{=}65{,}536$) & 31 layers $\times$ 32{,}768 switches & 9.4\,ms \\
+Trace Materialization       & 1{,}015{,}808 constraints & 3.6\,ms \\
+\midrule
+\textbf{Total Witness Pipeline} & & \textbf{$\sim$315\,ms} \\
+\bottomrule
+\end{tabular}
+\caption{End-to-end witness generation for the
+\texttt{\#community:matrix.org} state snapshot (43{,}543 events).
+The entire $\mathbb{F}_2$ constraint layer materializes in
+sub-centisecond time (3.6\,ms), isolating the computational
+bottleneck to standard cryptographic hashing and logical sorting.}
+\label{tab:benchmark}
+\end{table}
+
+The public journal commits two Merkle roots:
+\texttt{da\_root} (the canonical hash over the input event set,
+ensuring data availability) and \texttt{state\_root}
+(the hash over the resolved state output).
+Any server holding the same event set will independently derive
+the same roots, enabling divergence detection without exchanging
+the full 50--100\,MB auth chain.
 
 
 % ==================================================================

@@ -3,18 +3,11 @@ name = "ruma-zk-topological-air"
 version.workspace = true
 authors.workspace = true
 edition = "2021"
-description = "Topological AIR chip used by ruma-zk-prover."
+description = "Topological AIR constraints for the graph-native STARK framework."
 readme = "README.md"
 license.workspace = true
 repository.workspace = true
 
 [dependencies]
-p3-air.workspace = true
-p3-baby-bear.workspace = true
-p3-field.workspace = true
-p3-matrix = "0.5.2"
-
-bincode.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tiny-keccak.workspace = true

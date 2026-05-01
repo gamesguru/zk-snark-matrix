@@ -3,7 +3,7 @@ name = "ruma-zk-verifier"
 version.workspace = true
 edition = "2021"
 authors.workspace = true
-description = "Lightweight verifier for matrix servers (crate or bin) and web clients (wasm)."
+description = "Lightweight verifier for the graph-native STARK framework."
 readme = "README.md"
 repository.workspace = true
 license.workspace = true
@@ -18,8 +18,6 @@ wasm = ["wasm-bindgen", "getrandom", "web-time"]
 [dependencies]
 bincode.workspace = true
 getrandom = { version = "0.2", features = ["js"], optional = true }
-p3-baby-bear.workspace = true
-p3-field.workspace = true
 ruma-zk-topological-air = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true

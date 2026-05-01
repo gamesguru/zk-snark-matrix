@@ -5,7 +5,12 @@ use wasm_bindgen::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
-pub use ruma_zk_topological_air::{matrix_topological_constraint, MatrixEvent, STATE_WIDTH};
+pub use ruma_zk_topological_air::MatrixEvent;
+
+/// Width of a Merkle-committed state column (legacy scaffold).
+/// This will be replaced by the Binius trace commitment scheme.
+pub const STATE_WIDTH: usize = 5;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RawProof {
     pub root: [u8; 32],
@@ -41,7 +46,7 @@ impl RawProof {
         let mut idx = opening.index;
         for sibling in &opening.path {
             let mut k = Keccak::v256();
-            if idx.is_multiple_of(2) {
+            if idx % 2 == 0 {
                 k.update(&current_hash);
                 k.update(sibling);
             } else {

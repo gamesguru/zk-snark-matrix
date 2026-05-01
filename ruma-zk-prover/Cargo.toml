@@ -9,30 +9,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-base64 = { version = "=0.21.7", default-features = false }
-bincode.workspace = true
-ciborium = "0.2.2"
 clap = { version = "4.4", features = ["derive"] }
-ed25519-consensus = "2.1"
-hashbrown = { version = "=0.14.5", default-features = false, features = ["ahash", "inline-more", "serde"] }
 hex = { version = "=0.4.3", default-features = false, features = ["alloc"] }
-rayon = "1.8"
-reqwest = { version = "0.11", features = ["blocking", "json"] }
-ruma-lean = { workspace = true, features = ["cli"] }
 ruma-zk-topological-air = { workspace = true }
-ruma-zk-verifier = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
-sha2 = "0.10.8"
-
-ahash = "0.8"
-p3-baby-bear.workspace = true
-p3-challenger = "0.5.2"
-p3-commit = "0.5.2"
-p3-field.workspace = true
-p3-keccak = "0.5.2"
-p3-matrix = "0.5.2"
-p3-merkle-tree = "0.5.2"
-p3-symmetric = "0.5.2"
-rand = "0.8"
-tiny-keccak.workspace = true

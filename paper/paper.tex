@@ -157,11 +157,21 @@ prime-field polynomial arithmetic (no FFTs).
 
 \subsection{Binary Field Arithmetic}
 
-All trace arithmetic operates over $\mathbb{F}_2$ (or a small binary
-extension field).  Addition is bitwise XOR; multiplication is bitwise
-AND.  This eliminates the need for modular reduction over large primes,
+The target architecture operates over $\mathbb{F}_2$ (or a small
+binary tower extension).  Addition is bitwise XOR; multiplication is
+bitwise AND.  This eliminates modular reduction over large primes,
 and all constraint evaluations reduce to native CPU bit operations
 executing in $\mathcal{O}(N)$ time.
+
+\begin{remark}[Implementation Field]
+The current proof-of-concept implementation uses the BabyBear prime
+field ($p = 2^{31}-1$) via Plonky3, because mature binary-field
+STARK tooling (e.g., Binius) was not yet available at development
+time.  The theoretical architecture and all complexity claims in
+this paper target the binary field; migrating the implementation
+from BabyBear to $\mathbb{F}_2$ is a planned engineering step that
+does not affect the protocol's soundness or asymptotic properties.
+\end{remark}
 
 
 % ==================================================================
@@ -475,9 +485,11 @@ $\mathtt{final\_state\_hash}$ into his database.
 \end{center}
 
 \paragraph{Topological AIR (\texttt{ruma-zk-topological-air}).}
-Defines the trace layout over BabyBear, the \texttt{MatrixEvent}
-data type, the topological constraint function, and the canonical
-verification key hash.  The crate is \texttt{\#![no\_std]}.
+Defines the trace layout, the \texttt{MatrixEvent} data type, the
+topological constraint function, and the canonical verification key
+hash.  The PoC operates over BabyBear ($p = 2^{31}-1$) via Plonky3;
+the production target is $\mathbb{F}_2$ (see Remark~2.4).
+The crate is \texttt{\#![no\_std]}.
 
 \paragraph{Prover (\texttt{ruma-zk-prover}).}
 Orchestrates Phases~1--5: JSON deserialization, Kahn sort via

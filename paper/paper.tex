@@ -24,7 +24,7 @@
 \newtheorem{remark}[theorem]{Remark}
 
 % ── Listings ──────────────────────────────────────────────────────
-\lstset{
+\lstset{%
   basicstyle=\ttfamily\small,
   breaklines=true,
   frame=single,
@@ -37,7 +37,7 @@
   \text{Real-Time Proving on Large Inputs}
 }
 
-\author{
+\author{%
   Shane Jaroch\\
   \texttt{chown\_tee@proton.me}\\
   \url{https://github.com/gamesguru/ruma-zk}
@@ -159,11 +159,11 @@ $\mathcal{O}(N \log N)$, operating entirely via bitwise XORs over
 $\mathbb{F}_2$ without a single emulated CPU cycle.
 
 \begin{remark}[Asymptotic Crossover]\label{rem:crossover}
-Constant-degree superconcentrator-based Expander graphs achieve a
+Constant-degree superconcentrator-based Expander graphs~\cite{valiant} achieve a
 theoretical $\mathcal{O}(N)$ routing cost, but the hidden constant
 is enormous: explicit constructions (e.g., zig-zag products) carry
 combinatorial overhead so large that the crossover with
-$\mathcal{O}(N \log_2 N)$ Bene\v{s} routing occurs only at input
+$\mathcal{O}(N \log_2 N)$ Bene\v{s} routing~\cite{benes} occurs only at input
 sizes on the order of $N \gtrsim 2^{75}$---far beyond any
 foreseeable application.  We therefore adopt the
 $\mathcal{O}(N \log N)$ Bene\v{s} network as the practical
@@ -262,7 +262,7 @@ error strictly to $(1 - \delta)^k$.
 Let $\mathcal{H}$ be a DAG of $N$ nodes representing a valid causal
 state sequence, and let $\pi$ be any topological permutation
 dictating memory dependencies.  A Bene\v{s} network of depth
-$2\log_2(N) - 1$ is rearrangeably non-blocking.  By the
+$2\log_2(N) - 1$ is rearrangeably non-blocking~\cite{benes}.  By the
 Slepian--Duguid theorem, there exists a set of boolean switch
 assignments $S \in \{0,1\}^{W \times D}$ that simultaneously routes
 all required historical dependencies without edge collisions.
@@ -272,7 +272,7 @@ all required historical dependencies without edge collisions.
 By induction on the layers of the hypercube, applying Hall's
 Marriage Theorem to the bipartite graph of upper and lower
 subnetworks.  In our framework, this guarantees that the
-prover's deterministic plaintext Waksman pathfinding will never fail
+prover's deterministic plaintext Waksman pathfinding~\cite{waksman} will never fail
 to find a valid routing witness in $\mathcal{O}(N \log N)$ time,
 ensuring perfect completeness for any arbitrary DAG reduction.
 \end{proof}
@@ -361,7 +361,7 @@ for Matrix authorization rules (power-level monotonicity and
 lexicographical tie-breaking), we entirely eliminate the need for
 local full-DAG re-execution.  We propose
 \texttt{GET\allowbreak\ /\_matrix/\allowbreak federation/\allowbreak v1/\allowbreak zk\_state\_proof/\allowbreak\{roomId\}}
-(detailed in MSC\,0000~\cite{msc0000}) as the federation endpoint.
+as the federation endpoint.
 Proofs are generated asynchronously as periodic \emph{epoch rollups}
 (e.g., bi-weekly), avoiding latency on the join path.
 
@@ -413,8 +413,8 @@ For a 10,000-event fork, the prover generates the proof in under a
 second; the verifier confirms it in $\approx 5$\,ms.
 
 
-% ==================================================================
-\section{Implementation and Formal Verification}\label{sec:impl}
+% ------------------------------------------------------------------
+\subsection{Implementation and Formal Verification}\label{sec:impl}
 
 The framework is implemented as three modular Rust crates:
 
@@ -534,12 +534,6 @@ decentralized systems.
   ``Matrix Specification,''
   \url{https://spec.matrix.org/latest/}, 2024.
 
-\bibitem{msc0000}
-  S.~Jaroch,
-  ``MSC0000: Trustless ZK-zkVM Federated Room Joins,''
-  Draft, 2026.
-  \url{https://github.com/gamesguru/ruma-zk}
-
 \bibitem{jolt}
   A.~Arun, S.~Setty, and J.~Thaler,
   ``Jolt: SNARKs for Virtual Machines via Lookups,''
@@ -576,6 +570,26 @@ decentralized systems.
   ``How to Prove Yourself: Practical Solutions to Identification
   and Signature Problems,''
   \emph{CRYPTO}, pp.~186--194, 1986.
+
+\bibitem{benes}
+  Václav Edward Bene\v{s},
+  \emph{Mathematical Theory of Connecting Networks and
+  Telephone Traffic},
+  Academic Press, New York, 1965.
+
+\bibitem{waksman}
+  Abraham Waksman,
+  ``A Permutation Network,''
+  \emph{Journal of the ACM}, vol.~15, no.~1,
+  pp.~159--163, January 1968.
+  \url{https://doi.org/10.1145/321439.321449}
+
+\bibitem{valiant}
+  Leslie George Valiant,
+  ``Graph-Theoretic Properties in Computational Complexity,''
+  \emph{Journal of Computer and System Sciences}, vol.~13,
+  no.~3, pp.~278--285, December 1976.
+  \url{https://doi.org/10.1016/S0022-0000(76)80041-4}
 
 \end{thebibliography}
 

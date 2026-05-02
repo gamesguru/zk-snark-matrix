@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
-"""Extract federation-format PDUs using the standard Matrix federation API.
+"""Extract federation-format PDUs from Continuwuity via admin room.
 
-Your homeserver makes the authenticated federation request for you.
-We use the client API to trigger a backfill/event fetch, or we can
-directly call the federation API on the target server.
-
-Actually simplest: use /_matrix/client/v3/rooms/{roomId}/event/{eventId}
-on your OWN server, which returns the event from local DB.
-Then check if it includes signatures (it should for federation-received events).
+No /sync. Uses /messages to read bot responses. Auto-finds admin room.
 
 Usage:
-    export MATRIX_TOKEN="your_token"
+    source .env  # sets MATRIX_TOKEN
     python3 scripts/extract_fed_pdus.py \
         --server https://mdev.nutra.tk \
         --input /home/shane/nightly.json \
@@ -21,76 +15,137 @@ import argparse
 import json
 import os
 import sys
+import time
+import uuid
 from urllib.parse import quote
 
 import requests
 
 S = requests.Session()
+HDR = {}
 
 
-def fetch_event(server: str, token: str, room_id: str, event_id: str) -> dict | None:
-    """Fetch a single event via client API."""
-    url = f"{server}/_matrix/client/v3/rooms/{quote(room_id)}/event/{quote(event_id)}"
-    r = S.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
-    if r.status_code == 200:
-        return r.json()
+def api(method, url, **kw):
+    r = S.request(method, url, headers=HDR, timeout=15, **kw)
+    r.raise_for_status()
+    return r.json()
+
+
+def find_admin_room(server):
+    """Find admin room by looking for the server bot user."""
+    rooms = api("GET", f"{server}/_matrix/client/v3/joined_rooms")["joined_rooms"]
+    for rid in rooms:
+        try:
+            members = api(
+                "GET", f"{server}/_matrix/client/v3/rooms/{quote(rid)}/members"
+            )
+            for m in members.get("chunk", []):
+                uid = m.get("state_key", "")
+                if "conduit" in uid or "continuwuity" in uid or "admin" in uid.lower():
+                    # Check if this is a DM-like room (small)
+                    print(f"  [?] Candidate: {rid} (has bot user {uid})")
+                    return rid
+        except Exception:
+            continue
+    return None
+
+
+def send_msg(server, room, body):
+    txn = uuid.uuid4().hex
+    return api(
+        "PUT",
+        f"{server}/_matrix/client/v3/rooms/{quote(room)}/send/m.room.message/{txn}",
+        json={"msgtype": "m.text", "body": body},
+    )["event_id"]
+
+
+def read_latest(server, room, limit=5):
+    return api(
+        "GET",
+        f"{server}/_matrix/client/v3/rooms/{quote(room)}/messages",
+        params={"dir": "b", "limit": str(limit)},
+    ).get("chunk", [])
+
+
+def extract_pdu(text):
+    depth = 0
+    start = None
+    for i, c in enumerate(text):
+        if c == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0 and start is not None:
+                try:
+                    return json.loads(text[start : i + 1])
+                except json.JSONDecodeError:
+                    start = None
     return None
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--server", required=True, help="Your homeserver URL")
-    p.add_argument("--input", required=True, help="Client-format fixture JSON")
+    p.add_argument("--server", required=True)
+    p.add_argument("--admin-room", help="Admin room ID (auto-detected if omitted)")
+    p.add_argument("--input", required=True)
     p.add_argument("--output", default="fixtures/fed_state.json")
+    p.add_argument("--delay", type=float, default=2.0)
     args = p.parse_args()
 
     token = os.environ.get("MATRIX_TOKEN")
     if not token:
-        print("Set MATRIX_TOKEN env var")
+        print("Set MATRIX_TOKEN env var (source .env)")
         sys.exit(1)
+    HDR["Authorization"] = f"Bearer {token}"
 
     with open(args.input) as f:
         events = json.load(f)
-
-    room_id = events[0]["room_id"]
     eids = [e["event_id"] for e in events]
-    print(f"[*] Room: {room_id}")
     print(f"[*] {len(eids)} events to fetch")
 
+    # Find admin room
+    admin_room = args.admin_room
+    if not admin_room:
+        print("[*] Looking for admin room...")
+        admin_room = find_admin_room(args.server)
+        if not admin_room:
+            print("[!] Could not find admin room. Use --admin-room")
+            sys.exit(1)
+    print(f"[+] Admin room: {admin_room}")
+
+    # Test connection
+    print("[*] Testing...")
+    msgs = read_latest(args.server, admin_room, 1)
+    print(f"[+] Connected ({len(msgs)} messages)")
+
     pdus = []
-    client_only = []
     for i, eid in enumerate(eids):
         print(f"[{i+1}/{len(eids)}] {eid} ...", end=" ", flush=True)
-        ev = fetch_event(args.server, token, room_id, eid)
-        if ev is None:
-            print("✗ not found")
-            continue
 
-        if "signatures" in ev:
-            pdus.append(ev)
-            sigs = list(ev["signatures"].keys())
-            print(f"✓ fed format, sigs={sigs}")
-        else:
-            # Client API strips signatures -- save anyway
-            client_only.append(ev)
-            print(f"~ client format (no sigs)")
+        send_msg(args.server, admin_room, f"!admin debug get-pdu {eid}")
+        time.sleep(args.delay)
 
-    print(f"\n[+] {len(pdus)} federation PDUs (with signatures)")
-    print(f"[+] {len(client_only)} client-format events (no signatures)")
+        msgs = read_latest(args.server, admin_room, 3)
+        found = False
+        for msg in msgs:
+            body = msg.get("content", {}).get("body", "")
+            if "signatures" in body:
+                pdu = extract_pdu(body)
+                if pdu and "signatures" in pdu:
+                    pdus.append(pdu)
+                    print(f"✓ {list(pdu['signatures'].keys())}")
+                    found = True
+                    break
+        if not found:
+            print("✗")
 
-    if pdus:
-        os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
-        with open(args.output, "w") as f:
-            json.dump(pdus, f, indent=2)
-        print(f"[+] Saved federation PDUs to {args.output}")
-
-    if not pdus and client_only:
-        print("\n[!] Client API strips signatures.")
-        print("[!] You need to use the admin room: !admin debug get-pdu <event_id>")
-        # Save client events anyway
-        with open(args.output, "w") as f:
-            json.dump(client_only, f, indent=2)
-        print(f"[+] Saved client-format events to {args.output}")
+    print(f"\n[+] {len(pdus)}/{len(eids)} PDUs")
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
+    with open(args.output, "w") as f:
+        json.dump(pdus, f, indent=2)
+    print(f"[+] Saved to {args.output}")
 
 
 if __name__ == "__main__":

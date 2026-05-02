@@ -1,0 +1,73 @@
+[
+  {
+    "auth_events": [
+      "$Ot7371e1BRWE1FvL6WtTf3A6zIE6ZDBGZjFO2xfulhA",
+      "$O1XL8KrkUSZMeFkQdgQtA4h9adOiPqtjrxGQ1E6pS_I",
+      "$bjiujvIfDJ5wNceQdeaikycjU9CGG3g2kGXTsJktPb8"
+    ],
+    "content": {
+      "ban": 50,
+      "events": {
+        "im.vector.modular.widgets": 50,
+        "io.element.voice_broadcast_info": 50,
+        "m.room.power_levels": 100
+      },
+      "events_default": 0,
+      "invite": 0,
+      "kick": 50,
+      "redact": 50,
+      "state_default": 50,
+      "users": {
+        "@gamesguru:unredacted.org": 100,
+        "@gg:nutra.tk": 100
+      },
+      "users_default": 0
+    },
+    "depth": 227,
+    "event_id": "$50A_n2f1sJk44C-mHqtqcZVQQlKxAt4Y8CAaYX3qfsg",
+    "hashes": {
+      "sha256": "90QMp2EY2YoTTvt+T5lFfdnoxskz0V1ClaWfsasIhug"
+    },
+    "origin_server_ts": 1776148113690,
+    "prev_events": [
+      "$0t2NQXtuFlI4waVWCdghkGK_DiCZ9VWffudkETIoL7Q"
+    ],
+    "room_id": "!4zKUu8M4fstFjTFZ9E:nutra.tk",
+    "sender": "@gamesguru:matrix.org",
+    "signatures": {
+      "matrix.org": {
+        "ed25519:a_RXGa": "7BGsoVIq6zFT+pmUcgsa0DsF2ON5pBdokSc2OlQ5RrtJPupWhCZkafLPvfUdzcLDPXj77kaypNW9RxigAqjTCQ"
+      }
+    },
+    "state_key": "",
+    "type": "m.room.power_levels"
+  },
+  {
+    "auth_events": [
+      "$bjiujvIfDJ5wNceQdeaikycjU9CGG3g2kGXTsJktPb8",
+      "$97crOETa0X-80IH5OUtdm9EGLfckKfholmYE21xjZzA",
+      "$ooj782mqCqIHi45Jo9kOcCjMp3PCH9WeM7pc-QUT5r4"
+    ],
+    "content": {
+      "join_rule": "public"
+    },
+    "depth": 154,
+    "event_id": "$RqGx63TWv9OAGPFB7k8Wwp5F8rfzPuGu9Qg5hOE7WZQ",
+    "hashes": {
+      "sha256": "QgBHVVtZXHxxg1zSgdr15UnJX4uwOXb5yYHcOfLsR1Y"
+    },
+    "origin_server_ts": 1771732411430,
+    "prev_events": [
+      "$jhrhSfc_tU-qLyLN06_TPdFdU472LziIC3F1R7qWqYw"
+    ],
+    "room_id": "!4zKUu8M4fstFjTFZ9E:nutra.tk",
+    "sender": "@gg:nutra.tk",
+    "signatures": {
+      "nutra.tk": {
+        "ed25519:0vhRKHKw": "9m/cMierN1vuheFGsdNy1MRf5hBJIoe5dbwnN/DypP6fqxZOuGv9AsFThbrIWhbPS36Q1RqJwuONQ5iB6JgdBQ"
+      }
+    },
+    "state_key": "",
+    "type": "m.room.join_rules"
+  }
+]

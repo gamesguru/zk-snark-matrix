@@ -29,9 +29,7 @@
       "sha256": "90QMp2EY2YoTTvt+T5lFfdnoxskz0V1ClaWfsasIhug"
     },
     "origin_server_ts": 1776148113690,
-    "prev_events": [
-      "$0t2NQXtuFlI4waVWCdghkGK_DiCZ9VWffudkETIoL7Q"
-    ],
+    "prev_events": ["$0t2NQXtuFlI4waVWCdghkGK_DiCZ9VWffudkETIoL7Q"],
     "room_id": "!4zKUu8M4fstFjTFZ9E:nutra.tk",
     "sender": "@gamesguru:matrix.org",
     "signatures": {
@@ -57,9 +55,7 @@
       "sha256": "QgBHVVtZXHxxg1zSgdr15UnJX4uwOXb5yYHcOfLsR1Y"
     },
     "origin_server_ts": 1771732411430,
-    "prev_events": [
-      "$jhrhSfc_tU-qLyLN06_TPdFdU472LziIC3F1R7qWqYw"
-    ],
+    "prev_events": ["$jhrhSfc_tU-qLyLN06_TPdFdU472LziIC3F1R7qWqYw"],
     "room_id": "!4zKUu8M4fstFjTFZ9E:nutra.tk",
     "sender": "@gg:nutra.tk",
     "signatures": {

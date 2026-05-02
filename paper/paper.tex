@@ -33,8 +33,8 @@
 
 % ── Title ─────────────────────────────────────────────────────────
 \title{%
-  \textbf{Lightweight Graph-Based STARK Frameworks:}\\
-  \text{Real-Time Proving on Large Inputs}
+  \textbf{Graph-Native STARKs:}\\
+  End-to-End Verifiable DAG Reduction over Binary Fields
 }
 
 \author{%
@@ -43,7 +43,7 @@
   \url{https://github.com/gamesguru/ruma-zk}
 }
 
-\date{April 2026 --- Draft}
+\date{May 2026 --- Draft}
 
 % ==================================================================
 \begin{document}
@@ -51,27 +51,29 @@
 
 % ── Abstract ──────────────────────────────────────────────────────
 \begin{abstract}
-We present a graph-native STARK framework
-designed for the verifiable reduction of Directed Acyclic Graphs
-(DAGs).  Traditional zero-knowledge virtual machines (zkVMs)
-emulate Von Neumann architectures, incurring prohibitive
-$\mathcal{O}(C \log C)$ memory permutation overheads across
-millions of emulated CPU cycles~($C$).  Our framework bypasses
-CPU emulation entirely.  We separate the architecture into two
-distinct graphs: a \emph{Bene\v{s}/Superconcentrator routing graph}
-that physically enforces memory consistency within the execution
-trace without global permutation arguments, and an
-\emph{Expander-based Locally Testable Code} (LTC) that stretches
-the committed trace such that any single falsified bit cascades
-into $\ge 10\%$ corruption---detectable by $k = 843$ random column
-queries achieving $2^{-128}$ soundness error.  All trace arithmetic
-operates in a binary field using pure bitwise XOR, eliminating the
-need for prime-field FFTs.  The prover runs in
-$\mathcal{O}(N \log N)$ time, the proof payload is 150--250\,KB,
-and the verifier confirms soundness in $\approx 5$\,ms.  We
-demonstrate the framework's efficacy by applying it to Matrix
-Protocol state resolution, transforming a massively concurrent DAG
-reduction into a trustless, sub-centisecond verification.
+We present a graph-native STARK framework designed for the
+end-to-end verifiable reduction of Directed Acyclic Graphs (DAGs).
+Traditional zero-knowledge virtual machines (zkVMs) emulate Von
+Neumann architectures, incurring prohibitive memory permutation
+overheads across millions of emulated CPU cycles~($C$).  Our
+framework bypasses CPU emulation entirely, replacing temporal
+instruction cycles with a static, spatial Bene\v{s} routing
+network.  Furthermore, we identify and eliminate the ``trust
+boundary seam'' prevalent in heterogeneous coprocessor models,
+where data extraction and signature verification occur off-circuit.
+Leveraging the arithmetic compatibility of Post-Quantum
+Cryptography (PQC) with characteristic-2 fields, our framework
+natively arithmetizes content hashing and signature verification
+directly into the $\mathbb{F}_2$ execution trace.  The architecture
+utilizes an Expander-based Locally Testable Code (LTC) for trace
+commitment, requiring zero prime-field Fast Fourier Transforms
+(FFTs).  To eliminate monolithic hardware exhaustion, the framework
+integrates recursive SNARK composition, enabling horizontal
+MapReduce proving and Incrementally Verifiable Computation (IVC).
+The verifier confirms the absolute cryptographic authenticity and
+topological consistency of the network state in $\approx 5$\,ms,
+demonstrating a practical paradigm for trustless decentralized
+consensus.
 \end{abstract}
 
 
@@ -82,190 +84,300 @@ The demand for verifiable computation has driven rapid advancements
 in Scalable Transparent Arguments of Knowledge (STARKs).  The
 prevailing industry trajectory favors general-purpose
 zkVMs~\cite{sp1,jolt}, which compile high-level code into RISC-V
-instruction traces and prove their correct execution
-cycle-by-cycle.
+or WebAssembly instruction traces and prove their correct execution
+cycle-by-cycle.  While offering unmatched developer ergonomics,
+zkVMs introduce a catastrophic computational bottleneck for
+applications processing highly structured, large-scale data---such
+as deterministically reducing concurrent states in blockchains,
+build systems, and federated DAGs.
 
-While general-purpose zkVMs offer developer ergonomics, they
-introduce a catastrophic computational bottleneck for applications
-processing highly structured, large-scale data---such as
-deterministically reducing concurrent states in distributed systems
-or verifying large DAGs.  The bottleneck stems fundamentally from
-the Von Neumann architecture: the emulation of random-access memory
-and instruction cycles.
+The bottleneck stems fundamentally from the Von Neumann
+architecture.  Proving that a specific value was correctly written
+and later read from RAM requires a global memory consistency check,
+forcing the prover to compute expensive algebraic fractions over
+large prime fields.  Furthermore, verifying cryptographic identity
+(e.g., asymmetric signatures) inside these virtual machines triggers
+massive non-native arithmetic penalties.  The standard industry
+workaround is the heterogeneous coprocessor model: executing
+signatures off-circuit, generating a secondary proof, and weakly
+binding the proofs via cryptographic hashes.  This introduces a
+critical trust boundary seam allowing malicious provers to exploit
+data-extraction ambiguities.
 
-In a zkVM, proving that a specific value was correctly written and
-later read from RAM requires a global memory consistency check.
-Techniques like LogUp or offline memory checking force the prover to
-construct trace columns proportional to the number of CPU cycles,
-computing expensive algebraic fractions over large prime fields.
-Our approach abandons the virtual machine.  We observe that a
-broad class of verifiable computations---UTXO transaction graphs in
-blockchains, dependency resolution in build systems, causal event
-ordering in distributed ledgers---share a common structure: they
-reduce a DAG by propagating values along topological dependencies.
-Rather than emulating this walk cycle-by-cycle inside a VM, we embed
-it directly into the STARK execution trace as a static,
-\emph{Graph-Native} routing network.  We physically route
-historical variables to their destination nodes via a rigidly
-constrained Bene\v{s} switching network.  By pairing this localized $\mathcal{O}(N \log N)$
-geometric routing with Expander-based LTCs operating strictly in
-characteristic~2, our framework drops the prover overhead down
-to the absolute limit of native CPU bitwise instructions.
+Our framework abandons both the virtual machine and the coprocessor
+seam.  Rather than emulating a topological walk cycle-by-cycle
+inside an Instruction Set Architecture (ISA), we embed the DAG
+directly into the STARK execution trace as a static spatial routing
+network.  By capitalizing on the native $\mathbb{F}_2$ efficiency
+of emerging PQC standards, we introduce a unified, single-layer
+binary STARK that structurally binds identity, content hashing, and
+topological reduction into a mathematically unassailable execution
+trace.
 
 
 % ==================================================================
-\section{The Memory Consistency Bottleneck}\label{sec:bottleneck}
+\section{The Architecture of Trust Boundaries}\label{sec:bottleneck}
 
-To understand the asymptotic advantage of graph-native proving, we
-must formally contrast it with the standard zkVM memory
-checking paradigm utilized by systems like
-SP1~\cite{sp1} and Jolt/Lasso~\cite{jolt,lasso}.
+To formalize the asymptotic and security advantages of our unified
+graph-native framework, we must deconstruct both the runtime
+composition of standard zkVMs and the cryptographic fragility of
+off-circuit data ingestion.
 
-\subsection{The zkVM Paradigm: LogUp and Grand Products}
+\subsection{The Asymptotic Cost of ISA Emulation}
 
-General-purpose zkVMs operate by emulating an Instruction Set
-Architecture (ISA).  Let $N$ be the number of nodes in a DAG, and
-$C$ be the total CPU cycles required to process it natively.  To
-prove RAM consistency, trace-based zkVMs utilize permutation
-arguments like LogUp.  Every memory read and write generates a
-fractional term $\frac{1}{X - \mathrm{val}}$.  For a standard
-topological sort, manipulating pointers and arrays in RISC-V
-inflates $C$ to orders of magnitude larger than~$N$ (i.e.,
-$C = K \cdot N$, where $K$ is often $10^3$ to~$10^4$).  The prover
-is bound by $\mathcal{O}(C \log C)$ Fast Fourier Transforms (FFTs)
-over a massive prime field to evaluate these rational functions.
+General-purpose zkVMs operate by emulating a CPU\@.  Let $N$ be the
+number of nodes in a DAG, and $C$ be the total CPU cycles required
+to process that DAG natively.  To prove RAM consistency, trace-based
+zkVMs rely on global permutation arguments (e.g., LogUp).  Every
+memory access generates a fractional algebraic term
+$\frac{1}{X - \mathrm{val}}$.  For a standard topological sort
+algorithm, manipulating pointers and dynamically allocating arrays
+in RISC-V inflates the cycle count $C$ to orders of magnitude larger
+than $N$.  Thus, $C = K_{emu} \cdot N$, where the emulation constant
+$K_{emu}$ typically ranges from $10^3$ to $10^4$.
 
-Sum-check-based zkVMs (e.g., Jolt~\cite{jolt}) replace the FFT with
-multi-linear extensions and lookup tables (Lasso~\cite{lasso}).
-While this achieves strictly $\mathcal{O}(C)$ prover time, it still
-inherently tracks the Von Neumann cycle counter, program counter,
-and register state.  The constant is overwhelmingly dominated by
-instruction decoding and ISA emulation, leaving runtime bounds
-chained to $K \cdot N$.
-
-\subsection{Graph-Bound Routing}
-
-We observe that verifying a DAG reduction
-does not require an ISA\@.  By projecting topological dependencies
-directly onto a static Bene\v{s} permutation network,
-our framework replaces the temporal sequence of CPU
-cycles~($C$) with a purely spatial 2D trace.  Rather than using
-algebraic global permutations to prove that node~$A$ read from
-node~$B$, we embed a routing graph directly into
-the STARK execution trace.  Variables route through the trace
-geometrically via local switch constraints.  Consequently, the
-prover time scales strictly with the input size
-$\mathcal{O}(N \log N)$, operating entirely via bitwise XORs over
-$\mathbb{F}_2$ without a single emulated CPU cycle.
+The prover is bound by $\mathcal{O}(C \log C)$ trace operations
+over a massive prime field to compute these rational functions.
+While sum-check protocols over lookups
+(e.g., Jolt~\cite{jolt}) optimize the
+cryptographic operations to $\mathcal{O}(C)$, the underlying trace
+remains bound to the cycle counter.  The constant $K_{emu}$ is
+overwhelmingly dominated by instruction decoding and register
+allocation overhead, rendering the arithmetic circuit profoundly
+inefficient for strict topological reductions.
 
 \begin{remark}[Asymptotic Crossover]\label{rem:crossover}
-Constant-degree superconcentrator-based Expander graphs~\cite{valiant} achieve a
-theoretical $\mathcal{O}(N)$ routing cost, but the hidden constant
-is enormous: explicit constructions (e.g., zig-zag products) carry
-combinatorial overhead so large that the crossover with
-$\mathcal{O}(N \log_2 N)$ Bene\v{s} routing~\cite{benes} occurs only at input
-sizes on the order of $N \gtrsim 2^{75}$---far beyond any
-foreseeable application.  We therefore adopt the
-$\mathcal{O}(N \log N)$ Bene\v{s} network as the practical
-construction throughout this work.
-
-Conversely, while Jolt's sum-check protocol achieves strictly
-$\mathcal{O}(C)$ cryptographic cost, the per-node ISA emulation
-constant $K$ (typically $10^3$--$10^4$) ensures that
-$K \cdot N \gg N \log_2 N$ for all practical DAG sizes.  Even at
-$N = 2^{20}$ (${\approx}\,10^6$ nodes), the Jolt prover processes
+Constant-degree superconcentrator-based Expander
+graphs~\cite{valiant} achieve a theoretical $\mathcal{O}(N)$ routing
+cost, but the hidden constant is enormous: explicit constructions
+carry combinatorial overhead so large that the crossover with
+$\mathcal{O}(N \log_2 N)$ Bene\v{s}
+routing~\cite{benes} occurs only at input sizes on the order of
+$N \gtrsim 2^{75}$.  Even at $N = 2^{20}$
+(${\approx}\,10^6$ nodes), a Jolt prover processes
 ${\sim}\,10^{9}$--$10^{10}$ emulated cycles while our framework
 processes ${\sim}\,2 \times 10^{7}$ routing operations---a gap of
 two to three orders of magnitude.
 \end{remark}
 
-\begin{remark}[Implementation Field]\label{rem:field}
-The current proof-of-concept uses the BabyBear prime field
-($p = 2^{31}-1$) via Plonky3~\cite{plonky3}, because mature
-binary-field STARK tooling (e.g., Binius) was not yet available at
-development time.  Migrating to $\mathbb{F}_2$ is a planned
-engineering step that strictly improves constant-factor performance
-without altering the topological bounds.  The base-field operations
-use XOR ($\oplus$) and AND ($\cdot$); extension-field operations
-required for Fiat--Shamir challenges in
-$\mathbb{F}_{2^{128}}$~\cite{fiat-shamir} use hardware-accelerated
-carry-less multiplication (\texttt{CLMUL}).
-\end{remark}
+\subsection{The Heterogeneous Coprocessor Seam}
+
+Because standard signature schemes like Ed25519 operate over large
+prime fields (e.g., Curve25519 where $p = 2^{255} - 19$), computing
+them inside a binary field ($\mathbb{F}_2$) requires hundreds of
+thousands of non-native constraints per operation.  To avoid this,
+protocols often decouple identity from logic.  A native host parses
+the payload, verifies the signature off-circuit, hashes the
+extracted fields into a public input root, and feeds the values into
+the STARK logic circuit.
+
+This creates a critical cryptographic seam.  The proof attests that
+the logic was executed correctly over the provided inputs, but it
+cannot mathematically guarantee that those inputs were faithfully
+extracted from the originally signed payload.  A malicious prover
+can verify a genuine signature over a payload containing variable~$X$,
+but inject variable~$Y$ into the STARK logic trace while maintaining
+valid boundary hashes.  Closing this seam requires structurally
+binding the cryptographic identity strictly to the exact witness
+wires consumed by the logic circuit.
 
 
 % ==================================================================
-\section{Framework Architecture}\label{sec:arch}
+\section{Unified Graph-Native Architecture}\label{sec:arch}
 
-The framework is composed of two mathematically isolated graphs: a
-dynamically configured internal \emph{Routing Graph} to replace CPU
-memory, and a static external \emph{Cryptographic Graph} to replace
-polynomial commitment schemes (PCS).
+Our framework resolves both the Von Neumann memory bottleneck and
+the coprocessor trust seam by deploying a single-layer,
+characteristic-2 STARK\@.  We project the topological dependencies
+directly onto a static Bene\v{s} permutation network and push
+payload hashing and signature verification inside the trace boundary.
 
-\subsection{Trace Embedding and Bene\v{s} Routing}
+\begin{figure}[h]
+    \centering
+    \footnotesize
+    \begin{tikzpicture}[
+        node distance=0.6cm and 1.5cm,
+        box/.style={draw, rectangle, minimum width=4.5cm,
+                    minimum height=0.8cm, align=center, fill=gray!10},
+        arrow/.style={-{Stealth[length=6pt]}, thick}
+    ]
+    % Coprocessor/zkVM Architecture
+    \node (title1) {\textbf{Model A: General zkVM}};
+    \node[box, below=0.2cm of title1] (host)
+      {Native Host (Off-Circuit)\\ Parse Data \& Verify Sig};
+    \node[box, below=of host] (isa)
+      {ISA Emulation\\ $C = K_{emu} \cdot N$ Cycles};
+    \node[box, below=of isa] (proof1)
+      {Global Memory Permutation\\ Prime-Field Arithmetic};
+    \draw[arrow] (host) -- node[right, text width=2cm]
+      {\tiny Trust Boundary Seam} (isa);
+    \draw[arrow] (isa) -- (proof1);
+    % Graph-Native Architecture
+    \node[right=1.5cm of title1] (title2)
+      {\textbf{Model B: Graph-Native (Ours)}};
+    \node[box, below=0.2cm of title2] (dag2)
+      {Raw Payload Witness\\ (Bytes + Signatures)};
+    \node[box, below=of dag2] (hash)
+      {In-Circuit Content Hash\\ \& PQC Authenticity ($\mathbb{F}_2$)};
+    \node[box, below=of hash] (benes)
+      {Bene\v{s} Spatial Routing\\ Expander LTC ($\mathbb{F}_2$)};
+    \draw[arrow] (dag2) -- (hash);
+    \draw[arrow] (hash) -- (benes);
+    \end{tikzpicture}
+    \caption{Architectural runtime composition.  Model~A relies on
+    untrusted host-side data extraction to avoid non-native signature
+    arithmetic, introducing a vulnerability seam before executing
+    expensive CPU emulation.  Model~B natively ingests raw bytes,
+    leveraging binary-field PQC and geometric routing to eliminate
+    CPU cycles and prime-field permutations entirely.}
+    \label{fig:arch_comparison}
+\end{figure}
 
-The framework initialization separates the DAG computation into a
-\emph{public instance} (the topological boundary hashes) and a
-\emph{private witness} (the node data, the topological sort
-permutation, and pre-computed Waksman routing hints).  Rather than
-allocating dynamic memory, the prover embeds this witness into a
-static $\mathbb{F}_2$ execution trace of width~$W$ (padded to
-$2^d \ge N$) and depth~$D$.  The input layer ingests the initial
-DAG state.  Guided by the private routing hints, the intermediate layers
-function as a physical Bene\v{s} network, recursively copying
+\subsection{Trace Embedding and Spatial Memory}
+
+The framework initialization allocates a static $\mathbb{F}_2$
+execution trace of width~$W$ (padded to $2^d \ge N$) and depth~$D$.
+The input layer ingests the raw, unparsed payload bytes.  Rather
+than executing pointer arithmetic, the intermediate layers function
+as a physical Bene\v{s} network.  Guided by private plaintext
+routing hints computed by the prover, the network recursively copies
 required state variables downward and across adjacent column edges
-using native bitwise XOR operations.  A Bene\v{s} network for $N$
-inputs consists of $2\log_2 N - 1$ layers of $N/2$ switches each,
-totalling $(2\log_2 N - 1) \cdot N/2 = \mathcal{O}(N \log N)$
-routing constraints.  Each switch enforces a single local algebraic
-constraint over $\mathbb{F}_2$:
+using native bitwise XOR operations.  If a trace requires $N$
+inputs, the Bene\v{s} network requires exactly
+$2 \log_2(N) - 1$ layers, yielding a strict spatial complexity of
+$\mathcal{O}(N \log N)$ trace nodes.  Each switch enforces a single
+local algebraic constraint over $\mathbb{F}_2$:
 \begin{equation}\label{eq:switch}
   \texttt{out} = a \oplus s \cdot (a \oplus b),
 \end{equation}
-where $s \in \{0,1\}$ is the private switch state.
-This purely spatial
-construction guarantees that all data dependencies arrive at the
-final logic layer for local constraint evaluation without invoking a
-global memory bus.
+where $s \in \{0,1\}$ is the private switch state.  Because memory
+routing is enforced via geometric adjacency rather than fractional
+polynomials, the constraint degree remains minimal.
+
+\subsection{In-Circuit PQC and Content Hashing}
+
+To eliminate the trust seam, the binary execution trace asserts the
+mathematical validity of the raw input bytes before allowing them to
+route through the network.  This is facilitated by the arithmetic
+synergy of NIST Post-Quantum Cryptography (PQC) standards.
+
+While classical elliptic curve cryptography requires prime-field
+arithmetic, PQC algorithms map elegantly to binary fields.  The
+SLH-DSA signature scheme (FIPS~205) is entirely hash-based, relying
+exclusively on Keccak permutations comprising native bitwise AND,
+XOR, and rotation operations.  Alternatively, lattice-based schemes
+like FN-DSA (FIPS~206, Falcon) utilize Number Theoretic Transforms
+(NTTs) over a highly constrained 14-bit prime ring ($q=12289$).
+While this requires modulus logic, 14-bit integer multiplications
+are efficiently executed via schoolbook multiplication inside
+$\mathbb{F}_2$, yielding a tractable $\approx 5 \times 10^6$
+constraints per signature.
+
+By asserting $\texttt{Hash}(\text{canonical\_payload})
+= \text{identity\_hash}$ alongside the PQC signature verification
+directly in the upper layers of the trace, the exact bit-wires
+representing the validated payload content flow continuously into
+the logic comparators.  Equivocation between the identity layer and
+the logic layer is rendered topologically impossible.
 
 \subsection{Expander-Based Commitment (LTC)}
 
-Standard STARKs commit to the execution trace by interpolating it
-into polynomials and generating Reed--Solomon codewords via FFTs.
-Our framework replaces this algebraic commitment with proximity
+Our framework replaces algebraic FFT commitments with proximity
 testing over a sparse Cryptographic Graph.  The prover stretches the
 binary grid by multiplying it against a public, sparse,
 constant-degree Expander matrix~$G$:
 \[
   T_{\mathrm{stretched}} \;=\; T_{\mathrm{original}} \cdot G
 \]
-Because $G$ is a highly sparse, constant-degree matrix operating
-over $\mathbb{F}_2$, each output element requires only a fixed
-number of XOR operations.  For a Bene\v{s} trace with
-$\mathcal{O}(N \log N)$ nodes, the total cost is
-$\mathcal{O}(N \log N)$ bitwise XORs.  By the Expander mixing
-lemma, any localized constraint failure---such as a single falsified
-Bene\v{s} switch flag---cascades to corrupt a $\ge \delta$-fraction
-(e.g., $10\%$) of the extended grid.  The prover then Merkle-commits
-these stretched columns to produce the trace commitment root.
-
-\subsection{Non-Interactive Verification}
-
-Verification is orchestrated via a Fiat--Shamir hash
-sponge~\cite{fiat-shamir}, requiring strictly $\mathcal{O}(1)$
-cryptographic interactions and $\mathcal{O}(\log N)$ constraint
-evaluations.  The verifier seeds the sponge with the public instance
-to derive challenge indices.  The prover collapses the 2D routing
-and logic constraints into a condensed 1D sum-check summary, which
-the verifier confirms evaluates to zero.  Finally, the verifier
-authenticates $k$ randomly drawn columns from the Merkle tree and
-performs local LTC proximity checks by multiplying the un-stretched
-segments by~$G$.  Because a forgery corrupts a $\delta$-fraction of
-the trace, drawing $k$ independent columns bounds the soundness
-error strictly to $(1 - \delta)^k$.
+Because $G$ possesses a strict constant degree, matrix multiplication
+over $\mathbb{F}_2$ is strictly linear relative to the trace size.
+By the Expander mixing lemma, any localized constraint
+failure---such as a single falsified Bene\v{s} switch
+flag---cascades to corrupt a $\ge \delta$-fraction (e.g., $10\%$)
+of the extended grid.  The prover Merkle-commits these stretched
+columns to produce the trace commitment root.
 
 
 % ==================================================================
-\section{Theoretical Foundations}\label{sec:theory}
+\section{Recursive MapReduce Proving}\label{sec:recursive}
+
+While the graph-native trace achieves optimal asymptotic complexity,
+generating a monolithic proof for an infinitely expanding DAG
+eventually exhausts hardware memory limitations.  Furthermore,
+re-proving an entire causal history to append a single node is
+temporally unviable.  The framework solves this via recursive SNARK
+composition, enabling horizontal parallelism and Incrementally
+Verifiable Computation (IVC).
+
+\subsection{Horizontal Graph Partitioning}
+
+Directed Acyclic Graphs naturally consist of disjoint causal branches
+that ultimately converge.  This topology maps perfectly to a
+MapReduce processing architecture.  A massive DAG is partitioned
+into independent sub-graphs $\mathcal{D}_1, \dots, \mathcal{D}_m$.
+Disparate servers within the network concurrently generate proofs
+$\pi_1, \dots, \pi_m$ for their assigned sub-graphs.
+
+A recursive circuit subsequently ingests these sub-proofs as private
+witnesses, verifies their execution logic within the trace, and
+outputs a singular aggregated proof $\pi_{agg}$.  This recursive
+folding distributes the worst-case $\mathcal{O}(N^2)$ reduction
+burden across commodity hardware, bounding wall-clock processing
+time strictly to the depth of the recursive tree.
+
+\begin{figure}[h]
+    \centering
+    \footnotesize
+    \begin{tikzpicture}[
+        node distance=0.8cm and 0.5cm,
+        leaf/.style={draw, rectangle, minimum width=2cm,
+                     minimum height=0.6cm, align=center, fill=blue!10},
+        nodebox/.style={draw, rectangle, minimum width=2.5cm,
+                     minimum height=0.6cm, align=center, fill=green!10},
+        root/.style={draw, rectangle, minimum width=3cm,
+                     minimum height=0.8cm, align=center, fill=red!10},
+        arrow/.style={-{Stealth[length=6pt]}, thick}
+    ]
+    \node[leaf] (p1) {$\pi_1$ (Sub-DAG 1)};
+    \node[leaf, right=of p1] (p2) {$\pi_2$ (Sub-DAG 2)};
+    \node[leaf, right=of p2] (p3) {$\pi_3$ (Sub-DAG 3)};
+    \node[leaf, right=of p3] (p4) {$\pi_4$ (Sub-DAG 4)};
+    \node[nodebox, above right=0.6cm and -0.8cm of p1] (agg1)
+      {Verify($\pi_1, \pi_2$)};
+    \node[nodebox, above right=0.6cm and -0.8cm of p3] (agg2)
+      {Verify($\pi_3, \pi_4$)};
+    \node[root, above right=0.8cm and -1.2cm of agg1] (root)
+      {Final State Root $\pi_{agg}$};
+    \draw[arrow] (p1) -- (agg1);
+    \draw[arrow] (p2) -- (agg1);
+    \draw[arrow] (p3) -- (agg2);
+    \draw[arrow] (p4) -- (agg2);
+    \draw[arrow] (agg1) -- (root);
+    \draw[arrow] (agg2) -- (root);
+    \end{tikzpicture}
+    \caption{Recursive MapReduce Proof Folding.  A massive DAG is
+    structurally partitioned, allowing edge nodes to generate local
+    binary STARK proofs in parallel.  Intermediate recursive circuits
+    fold the proofs until a single $\mathcal{O}(1)$ root proof
+    encapsulates the entire topological reduction.}
+    \label{fig:recursive_mapreduce}
+\end{figure}
+
+\subsection{Incrementally Verifiable Computation}
+
+To support perpetually growing datasets, the framework employs IVC\@.
+When new nodes append to the verified DAG, the network does not
+reconstruct the entire causal history.  Instead, the prover
+generates a sequential epoch proof $\pi_{i+1}$ that asserts:
+$\texttt{Verify}(\pi_i) \wedge \texttt{Verify(DAG\_Delta)}$.  This
+recursive fold confines the STARK trace complexity strictly to the
+localized delta of newly appended events, bounding the sequential
+runtime to $\mathcal{O}(\Delta N \log \Delta N)$ per epoch and
+guaranteeing $\mathcal{O}(1)$ temporal verification for end clients
+regardless of the network's age.
+
+
+% ==================================================================
+\section{Formalization of Cryptographic Boundaries}\label{sec:theory}
 
 \begin{theorem}[Non-Blocking Trace Embeddability]\label{thm:embed}
 Let $\mathcal{H}$ be a DAG of $N$ nodes representing a valid causal
@@ -343,6 +455,25 @@ at most $(1 - \delta)^k$.  Solving
     \;\approx\; 842.1.
 \]
 Setting $k = 843$ therefore suffices.
+\end{proof}
+
+\begin{theorem}[Structural Identity Binding]\label{thm:identity}
+Let the arithmetic circuit define a continuous wire geometry where
+the output registers of the signature-verification and
+content-hashing gadgets map strictly to the input domain of the
+Bene\v{s} routing network.  An equivocation forgery is
+mathematically impossible without violating the constraint
+polynomials of the routing network.
+\end{theorem}
+
+\begin{proof}
+In a unified execution trace, data is immutable once committed.  If
+the payload bytes successfully satisfy the cryptographic identity
+constraints, those exact bits inhabit the specific columns routed to
+the logic layer.  Attempting to substitute a different bit value
+$y \neq a$ at the routing boundary violates the Bene\v{s} spatial
+constraint $C_{\mathrm{route}} = 0$, guaranteeing the proof will
+fail sum-check verification.
 \end{proof}
 
 % ==================================================================

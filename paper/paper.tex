@@ -564,6 +564,19 @@ malicious server withholding underlying events must be addressed
 orthogonally at the protocol layer.  Memory safety is enforced via
 \texttt{\#![forbid(unsafe\_code)]} across all crates.
 
+\paragraph{Data Availability.}
+A valid proof attests to correct execution but does not guarantee
+data availability: a malicious prover may omit events to bias
+the resolved state.  Our implementation addresses this by committing
+a deterministic \texttt{da\_root} (the Keccak-256 Merkle root over
+the canonically sorted event set) in the public journal.  The
+verifier queries federation peers for their independently computed
+\texttt{da\_root}; root divergence indicates omission and triggers
+proof re-request from a trusted peer.  In the degenerate case of a
+single-server room, the trust model is identical to a traditional
+\texttt{/send\_join}---no worse, but with the additional guarantee
+that the prover at least executed state resolution honestly.
+
 \paragraph{Future Work.}
 The current proof-of-concept uses a Star Graph walk as scaffolding;
 the production system requires a complete Waksman routing network
@@ -571,9 +584,22 @@ over the Boolean Hypercube, together with full AIR binding to a
 dedicated binary-field backend (e.g., Binius).  Richer constraint
 layers encoding full Matrix auth rules (join rules, redactions,
 event-type restrictions) are needed for production coverage.
-Recursive composition---wrapping proofs in a Groth16 SNARK for
-constant-size verification---and closing the six remaining Lean~4
-\texttt{axiom} declarations are ongoing research directions.
+
+A key open problem is integrating Ed25519 signature verification
+into the proof pipeline.  Direct arithmetization in $\mathbb{F}_2$
+is infeasible: Ed25519 operates over a 255-bit prime field
+($p = 2^{255} - 19$), and a single scalar multiplication would
+require $\sim$500{,}000 non-native constraints---dwarfing the
+entire routing trace.  The structurally sound solution is
+\emph{recursive composition}: a BN254 Groth16 SNARK attests to
+batch Ed25519 verification, producing a constant-size ($\sim$200
+byte) proof that is then hash-verified within the $\mathbb{F}_2$
+STARK via the $h_{\mathrm{auth}}$ binding.  This two-layer
+architecture mirrors production systems such as Polygon zkEVM,
+which wraps its STARK in a Groth16 for identical reasons.
+
+Closing the six remaining Lean~4 \texttt{axiom} declarations
+with constructive proofs is an ongoing research direction.
 
 
 % ==================================================================

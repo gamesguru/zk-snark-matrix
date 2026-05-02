@@ -211,9 +211,20 @@ fn main() {
             let resolved_ids: Vec<String> = resolved.values().cloned().collect();
             let state_root = ruma_zk_prover::merkle::build_merkle_root(&resolved_ids);
 
+            // ── h_auth: identity binding over canonically sorted event IDs ──
+            // Event IDs in Matrix are content hashes of the signed PDU,
+            // so hashing the sorted IDs is cryptographically equivalent to
+            // hashing the (event_id || signature) pairs.
+            let mut auth_blob = Vec::new();
+            for id in &sorted_ids {
+                auth_blob.extend_from_slice(id.as_bytes());
+            }
+            let h_auth = ruma_zk_prover::merkle::keccak256(&auth_blob);
+
             println!("\n  Public Journal:");
             println!("    da_root:    {}", hex::encode(da_root));
             println!("    state_root: {}", hex::encode(state_root));
+            println!("    h_auth:     {}", hex::encode(h_auth));
             println!("    n_events:   {}", n_events);
             println!("    n_resolved: {}", resolved.len());
             println!("\n  [Witness ready -- awaiting Binius prover backend]");

@@ -308,21 +308,37 @@ temporally unviable.  The framework solves this via recursive SNARK
 composition, enabling horizontal parallelism and Incrementally
 Verifiable Computation (IVC).
 
-\subsection{Horizontal Graph Partitioning}
+\subsection{Horizontal Identity Partitioning}
 
-Directed Acyclic Graphs naturally consist of disjoint causal branches
-that ultimately converge.  This topology maps perfectly to a
-MapReduce processing architecture.  A massive DAG is partitioned
-into independent sub-graphs $\mathcal{D}_1, \dots, \mathcal{D}_m$.
-Disparate servers within the network concurrently generate proofs
-$\pi_1, \dots, \pi_m$ for their assigned sub-graphs.
+A critical architectural constraint distinguishes graph-native
+MapReduce from na\"ive DAG partitioning.  Because the Bene\v{s}
+routing network enforces memory consistency via physical spatial
+wires, slicing the DAG into disjoint sub-graphs would sever these
+wires---destroying the geometric routing invariant and forcing a
+fallback to the exact global permutation arguments the framework
+was designed to eliminate.
 
-A recursive circuit subsequently ingests these sub-proofs as private
-witnesses, verifies their execution logic within the trace, and
-outputs a singular aggregated proof $\pi_{agg}$.  This recursive
-folding distributes the worst-case $\mathcal{O}(N^2)$ reduction
-burden across commodity hardware, bounding wall-clock processing
-time strictly to the depth of the recursive tree.
+Instead, the framework partitions the \emph{cryptographic identity
+workload}, not the topological reduction.  The $N$ raw event
+payloads are divided into $m$ chunks
+$\mathcal{C}_1, \dots, \mathcal{C}_m$.  Disparate servers within the
+network concurrently generate ``Identity Proofs''
+$\pi_1, \dots, \pi_m$, each strictly attesting: \emph{``These
+payloads possess valid PQC signatures and hash to
+$\texttt{Chunk\_Root}_i$.''}  These proofs perform zero DAG logic
+and require zero cross-event memory routing; the workload is
+embarrassingly parallel.
+
+The aggregator circuit subsequently ingests these $m$ identity
+sub-proofs as recursive inputs.  Verification of $\pi_1, \dots,
+\pi_m$ cryptographically delivers the validated payload bits for all
+$N$ events into the aggregator's trace.  The aggregator then feeds
+all $N$ validated events into a \emph{single, monolithic}
+Bene\v{s} routing network within its own circuit---preserving the
+purely spatial architecture.  Because the aggregator's own constraint
+count is dominated by the $\approx 10^6$ routing constraints (not
+the $\approx 2 \times 10^{11}$ PQC constraints), its proving time
+remains tractable on a single machine.
 
 \begin{figure}[h]
     \centering
@@ -337,16 +353,16 @@ time strictly to the depth of the recursive tree.
                      minimum height=0.8cm, align=center, fill=red!10},
         arrow/.style={-{Stealth[length=6pt]}, thick}
     ]
-    \node[leaf] (p1) {$\pi_1$ (Sub-DAG 1)};
-    \node[leaf, right=of p1] (p2) {$\pi_2$ (Sub-DAG 2)};
-    \node[leaf, right=of p2] (p3) {$\pi_3$ (Sub-DAG 3)};
-    \node[leaf, right=of p3] (p4) {$\pi_4$ (Sub-DAG 4)};
+    \node[leaf] (p1) {$\pi_1$ (Chunk 1)};
+    \node[leaf, right=of p1] (p2) {$\pi_2$ (Chunk 2)};
+    \node[leaf, right=of p2] (p3) {$\pi_3$ (Chunk 3)};
+    \node[leaf, right=of p3] (p4) {$\pi_4$ (Chunk 4)};
     \node[nodebox, above right=0.6cm and -0.8cm of p1] (agg1)
       {Verify($\pi_1, \pi_2$)};
     \node[nodebox, above right=0.6cm and -0.8cm of p3] (agg2)
       {Verify($\pi_3, \pi_4$)};
     \node[root, above right=0.8cm and -1.2cm of agg1] (root)
-      {Final State Root $\pi_{agg}$};
+      {Monolithic Bene\v{s} + $\pi_{agg}$};
     \draw[arrow] (p1) -- (agg1);
     \draw[arrow] (p2) -- (agg1);
     \draw[arrow] (p3) -- (agg2);
@@ -354,11 +370,13 @@ time strictly to the depth of the recursive tree.
     \draw[arrow] (agg1) -- (root);
     \draw[arrow] (agg2) -- (root);
     \end{tikzpicture}
-    \caption{Recursive MapReduce Proof Folding.  A massive DAG is
-    structurally partitioned, allowing edge nodes to generate local
-    binary STARK proofs in parallel.  Intermediate recursive circuits
-    fold the proofs until a single $\mathcal{O}(1)$ root proof
-    encapsulates the entire topological reduction.}
+    \caption{Recursive Identity Partitioning.  The PQC signature and
+    content-hash workload ($\approx 2 \times 10^{11}$ constraints) is
+    distributed across edge nodes as embarrassingly parallel identity
+    proofs.  The root aggregator recursively verifies these proofs and
+    then executes the \emph{monolithic} Bene\v{s} routing network
+    ($\approx 10^6$ constraints), preserving the spatial memory
+    architecture.}
     \label{fig:recursive_mapreduce}
 \end{figure}
 
@@ -374,6 +392,17 @@ localized delta of newly appended events, bounding the sequential
 runtime to $\mathcal{O}(\Delta N \log \Delta N)$ per epoch and
 guaranteeing $\mathcal{O}(1)$ temporal verification for end clients
 regardless of the network's age.
+
+Crucially, the data passed between epochs is not the raw causal
+history but the \emph{reduced topological boundary}---a flat state
+map associating each state key with its resolved event.  The IVC
+circuit verifies $\pi_i$ (yielding the previous epoch's state map),
+natively ingests only the $\Delta N$ new events, and runs the
+Bene\v{s} routing network strictly over the delta events augmented
+by the incoming state map.  This mirrors the native state snapshot
+semantics of protocols like Matrix, where state resolution
+collapses an unbounded DAG into a bounded, fixed-width state vector
+at each epoch boundary.
 
 
 % ==================================================================
@@ -552,6 +581,21 @@ ensuring data availability) and \texttt{state\_root}
 Any server holding the same event set will independently derive
 the same roots, enabling divergence detection without exchanging
 the full 50--100\,MB auth chain.
+
+\subsection{Implementation Status}
+
+The reference implementation
+(\texttt{ruma-zk-prover}, \texttt{ruma-zk-topological-air},
+\texttt{ruma-zk-verifier}) is implemented as modular
+\texttt{\#![no\_std]} Rust crates enforcing
+\texttt{\#![forbid(unsafe\_code)]}.  The current proof-of-concept
+validates the topological routing architecture (Bene\v{s} network,
+Waksman pathfinding, Kahn sort, and tiebreak logic) and utilizes the
+heterogeneous coprocessor model---host-side JSON extraction and
+native signature verification---as scaffolding.  The full in-circuit
+binary payload parser and native $\mathbb{F}_2$ PQC signature
+verification described in \Cref{sec:arch} are the primary targets
+for the next iteration of the $\mathbb{F}_2$ compiler backend.
 
 % ==================================================================
 \section{Conclusion}\label{sec:conclusion}

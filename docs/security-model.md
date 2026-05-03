@@ -170,15 +170,167 @@ to "at least one federation peer is honest" -- a strictly weaker
 assumption that holds under the same Byzantine model Matrix already
 assumes for federation.
 
+## Recursive proof provenance
+
+### The proof genealogy ledger
+
+When proofs are generated via Recursive MapReduce (see paper §4), the
+framework must maintain a complete, unforgeable audit trail of which
+homeserver generated each sub-proof, when, and from what base state.
+
+Every STARK proof's **public journal** is extended with provenance fields:
+
+```
+{
+  // Existing fields
+  "da_root":     "0xc29ab9db...",
+  "state_root":  "0x259df515...",
+  "n_events":    43543,
+
+  // Provenance ledger
+  "prover_id":      "0x...",     // Keccak-256(server_name), e.g. "matrix.org"
+  "proof_timestamp": 1746230400, // Unix epoch when proof was generated
+  "epoch_range":    [0, 43543],  // Event index range this proof covers
+  "merge_base":     "0x...",     // state_root of the previous epoch (IVC parent)
+  "parent_proofs":  ["0x...", "0x..."]  // Hashes of sub-proofs folded into this one
+}
+```
+
+**Cost: zero additional constraints.** Public journal entries are inputs to
+the Fiat-Shamir hash sponge. They do not add gates to the arithmetic circuit.
+
+### Recursive hash binding
+
+In the recursive aggregator circuit, provenance is structurally enforced:
+
+```
+For each parent proof πᵢ being recursively verified:
+  assert keccak256(πᵢ.public_journal) == parent_proofs[i]
+```
+
+This adds only a Keccak hash per parent (~20,000 F₂ constraints each) —
+negligible compared to the routing network. A malicious aggregator cannot
+claim a different server generated a sub-proof or backdate a timestamp
+without invalidating the recursive verification.
+
+### The proof genealogy DAG
+
+Because each recursive fold carries its parents' journal hashes, the
+complete history of proof generation forms a **proof DAG** mirroring the
+event DAG:
+
+```
+Identity Proof π₁ (Chunk 1)
+  prover_id:     matrix.org
+  timestamp:     2026-05-02T12:00:00Z
+  epoch_range:   [0, 1000)
+  parent_proofs: []
+
+Identity Proof π₂ (Chunk 2)
+  prover_id:     envs.net
+  timestamp:     2026-05-02T12:00:12Z
+  epoch_range:   [1000, 2000)
+  parent_proofs: []
+
+Aggregated Proof π_agg
+  prover_id:     t2l.io
+  timestamp:     2026-05-02T12:01:40Z
+  epoch_range:   [0, 43543)
+  merge_base:    0x... (previous epoch's state_root)
+  parent_proofs: [hash(π₁), hash(π₂), ...]
+```
+
+Any server joining later can trace the final `π_agg` back to every leaf
+identity proof, seeing exactly who proved what, when, and what they were
+building on. If a sub-proof is later found to have been generated from
+manipulated events, the provenance chain pinpoints the exact server
+responsible.
+
+### Matrix integration
+
+Proofs are published as Matrix events:
+
+| Event Type              | Scope           | Purpose                                                      |
+| ----------------------- | --------------- | ------------------------------------------------------------ |
+| `m.room.identity_proof` | EDU (ephemeral) | Broadcast a chunk's identity proof to the gossip pool        |
+| `m.room.epoch_proof`    | State event     | Publish the final aggregated proof + full provenance journal |
+
+The room's event history **becomes** the proof ledger. Walking the
+`m.room.epoch_proof` chain backwards gives the complete history of
+distributed proof generation for the room, from genesis.
+
+## Proof signing requirement
+
+### Servers MUST sign all proofs
+
+All proofs broadcast over federation — both identity chunk proofs (EDUs) and
+aggregated epoch proofs (state events) — **MUST** carry a standard Matrix
+signature from the generating homeserver using its Ed25519 signing key (or
+its Falcon/FN-DSA key post-PQC migration).
+
+The signature covers the serialized public journal:
+
+```
+signature = sign(
+  server_signing_key,
+  canonical_json(proof.public_journal)
+)
+```
+
+This signature is transmitted **alongside** the proof, not inside the
+arithmetic circuit. It adds zero constraints.
+
+### Why sign proofs if the STARK already guarantees correctness?
+
+The STARK guarantees **computational integrity** — the state was resolved
+correctly. But it does not, by itself, prevent two distinct attack vectors
+that require identity-level accountability:
+
+1. **DoS via garbage proofs:** Without signatures, any anonymous node
+   could flood the federation with syntactically valid but semantically
+   useless proofs (e.g., proofs over empty or stale epoch ranges). The
+   receiving server would waste CPU on STARK verification before
+   discovering the proof is irrelevant. A signature allows the receiver to
+   reject proofs from untrusted or unknown servers **before** running the
+   verifier.
+
+2. **Accountability for malicious data selection:** A valid proof can be
+   generated over a biased event set (data availability attack). The
+   `da_root` attestation detects the divergence, but without a signed
+   `prover_id`, the federation cannot identify which server produced the
+   biased proof. Signatures make data-selection attacks attributable.
+
+3. **Replay prevention:** The signature binds the proof to a specific
+   `proof_timestamp` and `epoch_range`. A server cannot replay a stale
+   proof from a previous epoch without the signature revealing the
+   mismatch against the current federation state.
+
+### Verification flow (updated)
+
+The verifier-side flow from the previous section is extended:
+
+1. Receive proof + signature from federation peer.
+2. **Verify the server signature** on the public journal (native Ed25519
+   or Falcon, ~1μs). Reject unknown/untrusted servers immediately.
+3. Verify Ed25519/Falcon signatures on all received state events (DoS
+   short-circuit).
+4. Check `da_root` against federation peers.
+5. Verify the STARK proof (O(log N)).
+
+Step 2 is the cheapest possible filter — microseconds to reject garbage
+before committing to any cryptographic verification.
+
 ## Summary
 
 | Property               | Guaranteed by          | Level         |
 | ---------------------- | ---------------------- | ------------- |
 | Execution correctness  | STARK proof            | 2^-128        |
-| Routing completeness   | Benes theorem          | Deterministic |
+| Routing completeness   | Beneš theorem          | Deterministic |
 | Tamper detection       | LTC + 843 queries      | 2^-128        |
 | Auth chain elision     | Proof replaces chain   | Cryptographic |
 | Data availability      | da_root + federation   | Protocol      |
 | Circuit identity       | VK_HASH pinning        | Protocol      |
 | Signature authenticity | Prover OS + h_auth     | Cryptographic |
 | State completeness     | da_root + multi-attest | Byzantine     |
+| Proof provenance       | Public journal + IVC   | Cryptographic |
+| Prover accountability  | Server signature       | Cryptographic |

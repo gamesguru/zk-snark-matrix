@@ -104,7 +104,7 @@ pub fn equal_wide(a_bits: &[GF2], b_bits: &[GF2]) -> GF2 {
     assert_eq!(a_bits.len(), b_bits.len());
     let mut result = GF2::ONE;
     for (&a, &b) in a_bits.iter().zip(b_bits.iter()) {
-        result = result * (a + b + GF2::ONE);
+        result *= (a + b + GF2::ONE);
     }
     result
 }

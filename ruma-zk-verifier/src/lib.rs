@@ -46,7 +46,7 @@ impl RawProof {
         let mut idx = opening.index;
         for sibling in &opening.path {
             let mut k = Keccak::v256();
-            if idx % 2 == 0 {
+            if idx.is_multiple_of(2) {
                 k.update(&current_hash);
                 k.update(sibling);
             } else {

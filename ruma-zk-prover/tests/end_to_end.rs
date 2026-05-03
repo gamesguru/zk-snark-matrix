@@ -53,8 +53,8 @@ fn end_to_end_with_padding() {
     // Permutation: cycle the first 5, identity on padding
     let mut perm: Vec<usize> = (0..n_padded).collect();
     // Rotate first 5: [1, 2, 3, 4, 0, 5, 6, 7]
-    for i in 0..n_real {
-        perm[i] = (i + 1) % n_real;
+    for (i, val) in perm.iter_mut().enumerate().take(n_real) {
+        *val = (i + 1) % n_real;
     }
 
     let network = BenesNetwork::from_permutation(&perm);

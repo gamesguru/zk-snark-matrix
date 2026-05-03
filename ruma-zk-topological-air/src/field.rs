@@ -3,6 +3,9 @@
 //! `GF2` is the Galois field with two elements {0, 1}.
 //! Addition = XOR, Multiplication = AND, Negation = identity.
 
+#![allow(clippy::suspicious_arithmetic_impl)]
+#![allow(clippy::suspicious_op_assign_impl)]
+
 use core::fmt;
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 

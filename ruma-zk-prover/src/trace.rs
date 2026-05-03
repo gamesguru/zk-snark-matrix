@@ -71,7 +71,7 @@ impl ExecutionTrace {
         // We track the current state of all N wires.
         let mut wires = inputs.to_vec();
 
-        for (_layer_idx, layer_switches) in network.switches.iter().enumerate() {
+        for layer_switches in network.switches.iter() {
             let mut witnesses = Vec::with_capacity(layer_switches.len());
             let mut next_wires = vec![GF2::ZERO; n];
 

@@ -15,12 +15,14 @@ use crate::transcript::Transcript;
 
 use tiny_keccak::Hasher;
 
+use serde::{Deserialize, Serialize};
+
 /// Number of LTC queries for 128-bit soundness.
 /// From paper Theorem 5.3: k >= 128·ln(2) / ln(10/9) ≈ 842.1
 pub const SOUNDNESS_QUERIES: usize = 843;
 
 /// A column opening: the column data plus its Merkle authentication path.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ColumnOpening {
     /// Index of this column in the stretched trace.
     pub column_index: usize,

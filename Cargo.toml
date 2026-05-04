@@ -16,9 +16,6 @@ description = "Matrix State Resolution framework with ZK-SNARK proof generation 
 [workspace.dependencies]
 bincode = "1.3"
 hex = "0.4"
-p3-air = "0.5.2"
-p3-baby-bear = "0.5.2"
-p3-field = "0.5.2"
 ruma-lean = "0.1.1"
 ruma-zk-prover = { path = "ruma-zk-prover", version = "0.1.4" }
 ruma-zk-topological-air = { path = "ruma-zk-topological-air", version = "0.1.4" }

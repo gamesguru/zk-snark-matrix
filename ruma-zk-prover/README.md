@@ -32,7 +32,7 @@ Events (DAG) → Topological Sort → Beneš Routing Network → Execution Trace
 ## Usage
 
 ```bash
-cargo run -- demo --limit 1000
+cargo run -p ruma-zk-prover -- demo --limit 1000
 ```
 
 ## Test Coverage

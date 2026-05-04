@@ -1,92 +1,632 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Element Web (ZK Light Client)</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Matrix ZK Join Verification Simulator</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      :root {
+        --bg: #0a0e1a;
+        --surface: #111827;
+        --surface2: #1e293b;
+        --border: #334155;
+        --text: #e2e8f0;
+        --dim: #94a3b8;
+        --accent: #6366f1;
+        --accent2: #818cf8;
+        --green: #22c55e;
+        --red: #ef4444;
+        --orange: #f59e0b;
+        --cyan: #06b6d4;
+      }
       body {
         font-family: "Inter", sans-serif;
-        padding: 2rem;
-        background: #0f172a;
-        color: #f8fafc;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding: 1.5rem;
       }
-      button {
-        background: #3b82f6;
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--accent2), var(--cyan));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.25rem;
+      }
+      .subtitle {
+        color: var(--dim);
+        font-size: 0.85rem;
+        margin-bottom: 1.5rem;
+      }
+
+      /* Controls */
+      .controls {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      .seg {
+        display: flex;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+      .seg button {
+        padding: 0.5rem 1rem;
+        border: none;
+        background: var(--surface2);
+        color: var(--dim);
+        cursor: pointer;
+        font-size: 0.8rem;
+        font-family: inherit;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+      .seg button.active {
+        background: var(--accent);
+        color: #fff;
+      }
+      select {
+        padding: 0.5rem 0.75rem;
+        background: var(--surface2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.8rem;
+      }
+      .sim-btn {
+        padding: 0.6rem 1.5rem;
+        background: linear-gradient(135deg, var(--accent), #4f46e5);
         color: #fff;
         border: none;
-        padding: 12px 24px;
-        border-radius: 6px;
+        border-radius: 8px;
         cursor: pointer;
-        font-size: 1.1rem;
-        transition: background 0.3s;
+        font-family: inherit;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition:
+          transform 0.15s,
+          box-shadow 0.15s;
       }
-      button:hover {
-        background: #2563eb;
+      .sim-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
       }
-      #log {
-        background: #1e293b;
+      .sim-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      label {
+        font-size: 0.75rem;
+        color: var(--dim);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      /* Pipeline */
+      .pipeline {
+        display: grid;
+        grid-template-columns: 1fr auto 1.3fr;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      .col {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.25rem;
+      }
+      .col-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--dim);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .col-title .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+
+      /* Network column */
+      .net-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 180px;
+      }
+      .payload-badge {
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        text-align: center;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border: 1px solid var(--border);
+        transition: all 0.4s;
+      }
+      .payload-badge .size {
+        font-size: 1.5rem;
+        display: block;
+        margin-top: 0.25rem;
+      }
+      .payload-badge.traditional {
+        border-color: var(--red);
+        color: var(--red);
+      }
+      .payload-badge.zk {
+        border-color: var(--green);
+        color: var(--green);
+      }
+      .arrow {
+        font-size: 2rem;
+        color: var(--border);
+        margin: 0.5rem 0;
+        animation: pulse 1.5s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.3;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+      .arrow.idle {
+        animation: none;
+        opacity: 0.3;
+      }
+
+      /* Steps */
+      .step {
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid var(--border);
+        background: var(--surface2);
+        transition: all 0.4s;
+        font-size: 0.8rem;
+      }
+      .step .step-num {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 0.65rem;
+        color: var(--dim);
+        margin-bottom: 0.15rem;
+      }
+      .step .step-label {
+        font-weight: 500;
+      }
+      .step .step-detail {
+        font-size: 0.7rem;
+        color: var(--dim);
+        margin-top: 0.2rem;
+        font-family: "JetBrains Mono", monospace;
+      }
+      .step.idle {
+        opacity: 0.5;
+      }
+      .step.active {
+        border-left-color: var(--orange);
+        background: rgba(245, 158, 11, 0.08);
+        opacity: 1;
+      }
+      .step.active .step-label {
+        color: var(--orange);
+      }
+      .step.success {
+        border-left-color: var(--green);
+        background: rgba(34, 197, 94, 0.06);
+        opacity: 1;
+      }
+      .step.success .step-label {
+        color: var(--green);
+      }
+      .step.error {
+        border-left-color: var(--red);
+        background: rgba(239, 68, 68, 0.08);
+        opacity: 1;
+      }
+      .step.error .step-label {
+        color: var(--red);
+      }
+
+      /* Alert */
+      .alert {
         padding: 1rem;
-        margin-top: 20px;
-        font-weight: bold;
-        border-left: 4px solid #3b82f6;
-        border-radius: 0 8px 8px 0;
-        min-height: 100px;
-        white-space: pre-wrap;
-        font-family: monospace;
+        border-radius: 10px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        display: none;
+        margin-top: 0.5rem;
       }
-      .success {
-        color: #22c55e;
+      .alert.show {
+        display: block;
+        animation: fadeIn 0.4s;
       }
-      .error {
-        color: #ef4444;
+      .alert.ok {
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid var(--green);
+        color: var(--green);
+      }
+      .alert.fail {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--red);
+        color: var(--red);
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Stats bar */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.75rem;
+      }
+      .stat {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+      }
+      .stat .val {
+        font-size: 1.3rem;
+        font-weight: 700;
+        font-family: "JetBrains Mono", monospace;
+        color: var(--accent2);
+      }
+      .stat .lbl {
+        font-size: 0.65rem;
+        color: var(--dim);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-top: 0.25rem;
+      }
+      .stat.highlight .val {
+        color: var(--green);
+      }
+
+      @media (max-width: 900px) {
+        .pipeline {
+          grid-template-columns: 1fr;
+        }
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
       }
     </style>
   </head>
   <body>
-    <h2>Matrix ZK-Join Browser Verifier</h2>
-    <p>Demonstration of SP1 WebAssembly offloading Matrix State Res v2.</p>
-    <button id="joinBtn">Trustlessly Join #massive_room:matrix.org</button>
-    <div id="log">Status: Idle.</div>
+    <h1>Matrix ZK Room Join Verification Flow</h1>
+    <p class="subtitle">#community:matrix.org -- 43,543 state events</p>
 
-    <script type="module">
-      import init, { verify_matrix_join } from "../ruma-zk-wasm/pkg/ruma_zk_wasm.js";
+    <div class="controls">
+      <div>
+        <label>Architecture</label>
+        <div class="seg" id="archSeg">
+          <button class="active" data-v="zk">ZK-STARK</button>
+          <button data-v="trad">Traditional</button>
+        </div>
+      </div>
+      <div>
+        <label>Threat Scenario</label>
+        <select id="threat">
+          <option value="honest">Honest Join</option>
+          <option value="badsig">Malicious: Invalid Signature</option>
+          <option value="omit">Malicious: Withheld Event (Omission)</option>
+        </select>
+      </div>
+      <button class="sim-btn" id="simBtn">Simulate Join</button>
+    </div>
 
-      async function runDemo() {
-        try {
-          // Initialize the WASM module
-          await init();
+    <div class="pipeline">
+      <!-- Sender -->
+      <div class="col">
+        <div class="col-title">
+          <span class="dot" style="background: var(--accent2)"></span>Resident Server (Sender)
+        </div>
+        <div class="step idle" id="s-prepare">
+          <div class="step-num">PREP</div>
+          <div class="step-label">Prepare Payload</div>
+          <div class="step-detail" id="s-prepare-d">--</div>
+        </div>
+        <div class="step idle" id="s-sign">
+          <div class="step-num">AUTH</div>
+          <div class="step-label" id="s-sign-l">Verify Signatures</div>
+          <div class="step-detail" id="s-sign-d">--</div>
+        </div>
+        <div class="step idle" id="s-prove">
+          <div class="step-num">PROVE</div>
+          <div class="step-label" id="s-prove-l">Generate Proof</div>
+          <div class="step-detail" id="s-prove-d">--</div>
+        </div>
+      </div>
 
-          document.getElementById("joinBtn").onclick = async () => {
-            const log = document.getElementById("log");
-            log.innerText = "[*] Fetching ZK Proof payload from Matrix Federation...\n";
+      <!-- Network -->
+      <div class="col net-col">
+        <div class="col-title">
+          <span class="dot" style="background: var(--orange)"></span>Network
+        </div>
+        <div class="payload-badge zk" id="badge">
+          <span>Payload</span>
+          <span class="size" id="badgeSize">15.2 MB</span>
+        </div>
+        <div class="arrow idle" id="arrow">&darr;</div>
+        <div style="font-size: 0.7rem; color: var(--dim)" id="savings">83% smaller</div>
+      </div>
 
-            // Mock network delay
-            await new Promise((r) => setTimeout(r, 600));
+      <!-- Verifier -->
+      <div class="col">
+        <div class="col-title">
+          <span class="dot" style="background: var(--cyan)"></span>Joining Server (Verifier)
+        </div>
+        <div id="verifierSteps"></div>
+        <div class="alert" id="alert"></div>
+      </div>
+    </div>
 
-            // Simulate the downloaded 312-byte Groth16 payload
-            const proofBytes = new Uint8Array(312);
-            const publicInputs = new Uint8Array(32);
-            const vkeyHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
+    <div class="stats">
+      <div class="stat">
+        <div class="val" id="stBw">--</div>
+        <div class="lbl">Bandwidth</div>
+      </div>
+      <div class="stat">
+        <div class="val" id="stTime">--</div>
+        <div class="lbl">Verify Time</div>
+      </div>
+      <div class="stat">
+        <div class="val" id="stConst">--</div>
+        <div class="lbl">Constraints</div>
+      </div>
+      <div class="stat highlight">
+        <div class="val" id="stVerdict">--</div>
+        <div class="lbl">Verdict</div>
+      </div>
+    </div>
 
-            log.innerText +=
-              "[~] Executing Cryptographic Verification natively in WebAssembly (254-bit BN curves)...\n";
+    <script>
+      const FLOWS = {
+        zk: [
+          {
+            id: "v1",
+            num: "1",
+            label: "Download State + Proof",
+            detail: "15 MB state + 200 KB proof",
+            ms: 400,
+          },
+          {
+            id: "v2",
+            num: "2",
+            label: "Native Ed25519 Check (state only)",
+            detail: "43,543 sigs @ ~70us each -- ~3 sec single-threaded",
+            ms: 800,
+            failOn: "badsig",
+          },
+          {
+            id: "v3",
+            num: "3",
+            label: "Query Federation for da_root",
+            detail: "Multi-server attestation",
+            ms: 500,
+            failOn: "omit",
+          },
+          {
+            id: "v4",
+            num: "4",
+            label: "Verify STARK Proof",
+            detail: "O(log N) -- 13.6 ms",
+            ms: 350,
+          },
+        ],
+        trad: [
+          {
+            id: "v1",
+            num: "1",
+            label: "Download State + Auth Chain",
+            detail: "15 MB state + 75 MB auth chain = 90 MB",
+            ms: 800,
+          },
+          {
+            id: "v2",
+            num: "2",
+            label: "Verify ALL Ed25519 Signatures",
+            detail: "43,543 events -- O(N) bottleneck",
+            ms: 1200,
+          },
+          {
+            id: "v3",
+            num: "3",
+            label: "Re-run Full State Resolution",
+            detail: "O(N^2) DAG traversal",
+            ms: 1500,
+          },
+          {
+            id: "v4",
+            num: "4",
+            label: "Compare Resolved State",
+            detail: "Diff against received state",
+            ms: 300,
+          },
+        ],
+      };
+      const SENDER = {
+        zk: {
+          prepare: { label: "Prepare State Events", detail: "43,543 events (15 MB)" },
+          sign: { label: "Verify All Ed25519 (prover)", detail: "Auth chain -- native OS, ~3 sec" },
+          prove: { label: "Generate STARK Witness", detail: "Kahn + StateRes + Benes = 315 ms" },
+        },
+        trad: {
+          prepare: {
+            label: "Prepare State + Auth Chain",
+            detail: "43,543 events + 75 MB auth chain",
+          },
+          sign: { label: "(No signature step)", detail: "Sent raw to verifier" },
+          prove: { label: "(No proof generation)", detail: "Verifier must redo everything" },
+        },
+      };
 
-            const startTime = performance.now();
-            const isValid = verify_matrix_join(proofBytes, publicInputs, vkeyHash);
-            const executionTime = performance.now() - startTime;
+      let arch = "zk",
+        running = false;
 
-            if (isValid) {
-              log.innerHTML += `\n<span class="success">✓ SUCCESS: Cryptographically verified entire room DAG history in ${executionTime.toFixed(2)} ms!</span>`;
-            } else {
-              log.innerHTML += `\n<span class="error">✗ ALERT: Homeserver supplied invalid DAG state!</span>`;
-            }
-          };
-        } catch (e) {
-          document.getElementById("log").innerHTML =
-            `<span class="error">Error initializing WASM module. Did you run 'wasm-pack build --target web'?\n${e}</span>`;
-        }
+      // Arch toggle
+      document.querySelectorAll("#archSeg button").forEach((b) => {
+        b.onclick = () => {
+          if (running) return;
+          document.querySelectorAll("#archSeg button").forEach((x) => x.classList.remove("active"));
+          b.classList.add("active");
+          arch = b.dataset.v;
+          updateUI();
+        };
+      });
+
+      function updateUI() {
+        const isZK = arch === "zk";
+        const badge = document.getElementById("badge");
+        badge.className = "payload-badge " + (isZK ? "zk" : "traditional");
+        document.getElementById("badgeSize").textContent = isZK ? "15.2 MB" : "90 MB";
+        document.getElementById("savings").textContent = isZK ? "83% smaller" : "Baseline";
+        // Sender
+        const s = SENDER[arch];
+        document.getElementById("s-prepare-d").textContent = s.prepare.detail;
+        document.getElementById("s-sign-l").textContent = s.sign.label;
+        document.getElementById("s-sign-d").textContent = s.sign.detail;
+        document.getElementById("s-prove-l").textContent = s.prove.label;
+        document.getElementById("s-prove-d").textContent = s.prove.detail;
+        ["s-prepare", "s-sign", "s-prove"].forEach((id) => {
+          document.getElementById(id).className = "step idle";
+        });
+        // Verifier steps
+        const cont = document.getElementById("verifierSteps");
+        cont.innerHTML = "";
+        FLOWS[arch].forEach((st) => {
+          const d = document.createElement("div");
+          d.className = "step idle";
+          d.id = "step-" + st.id;
+          d.innerHTML = `<div class="step-num">STEP ${st.num}</div><div class="step-label">${st.label}</div><div class="step-detail">${st.detail}</div>`;
+          cont.appendChild(d);
+        });
+        document.getElementById("alert").className = "alert";
+        document.getElementById("alert").style.display = "none";
+        ["stBw", "stTime", "stConst", "stVerdict"].forEach(
+          (id) => (document.getElementById(id).textContent = "--"),
+        );
       }
-      runDemo();
+
+      function sleep(ms) {
+        return new Promise((r) => setTimeout(r, ms));
+      }
+
+      async function simulate() {
+        if (running) return;
+        running = true;
+        document.getElementById("simBtn").disabled = true;
+        updateUI();
+        const threat = document.getElementById("threat").value;
+        const isZK = arch === "zk";
+        const arrow = document.getElementById("arrow");
+        arrow.classList.remove("idle");
+
+        // Sender animation
+        for (const id of ["s-prepare", "s-sign", "s-prove"]) {
+          const el = document.getElementById(id);
+          el.className = "step active";
+          await sleep(isZK ? 250 : 150);
+          el.className = "step success";
+        }
+        await sleep(200);
+
+        // Verifier steps
+        const steps = FLOWS[arch];
+        let totalMs = 0,
+          failed = false;
+        for (const st of steps) {
+          const el = document.getElementById("step-" + st.id);
+          el.className = "step active";
+          await sleep(st.ms);
+          totalMs += st.ms;
+
+          if (st.failOn && st.failOn === threat && isZK) {
+            el.className = "step error";
+            const alert = document.getElementById("alert");
+            alert.style.display = "block";
+            alert.className = "alert fail show";
+            if (threat === "badsig") {
+              alert.textContent =
+                "SHORT-CIRCUIT: Native Ed25519 check caught invalid signature before STARK math. Proof never evaluated.";
+            } else {
+              alert.textContent =
+                "da_root DIVERGENCE detected among federation peers! Requesting ZK proof from a trusted peer with matching da_root.";
+            }
+            document.getElementById("stVerdict").textContent = "REJECTED";
+            document.getElementById("stVerdict").style.color = "var(--red)";
+            failed = true;
+            break;
+          }
+          el.className = "step success";
+        }
+
+        if (!failed) {
+          const alert = document.getElementById("alert");
+          alert.style.display = "block";
+          alert.className = "alert ok show";
+          if (isZK) {
+            alert.textContent =
+              "VERIFIED: Room state cryptographically proven correct. Auth chain never downloaded. Sigs: ~3 sec, STARK: ~13.6 ms.";
+          } else {
+            alert.textContent =
+              "VERIFIED: Full state resolution re-executed locally. Required downloading and processing 90 MB of auth chain data.";
+          }
+          document.getElementById("stVerdict").textContent = "ACCEPTED";
+          document.getElementById("stVerdict").style.color = "var(--green)";
+        }
+
+        // Stats
+        document.getElementById("stBw").textContent = isZK ? "15.2 MB" : "90 MB";
+        document.getElementById("stTime").textContent = isZK ? "~3 sec" : "~47 sec";
+        document.getElementById("stConst").textContent = isZK ? "1,015,808" : "N/A";
+
+        arrow.classList.add("idle");
+        running = false;
+        document.getElementById("simBtn").disabled = false;
+      }
+
+      document.getElementById("simBtn").onclick = simulate;
+      updateUI();
     </script>
   </body>
 </html>

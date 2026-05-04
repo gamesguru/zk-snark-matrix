@@ -1,0 +1,23 @@
+[package]
+name = "ruma-zk-prover"
+version.workspace = true
+authors.workspace = true
+edition = "2021"
+description.workspace = true
+readme = "README.md"
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+bincode.workspace = true
+clap = { version = "4.4", features = ["derive"] }
+hex = { version = "=0.4.3", default-features = false, features = ["alloc"] }
+ruma-lean = { workspace = true, features = ["std"] }
+ruma-zk-topological-air = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
+tiny-keccak.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"

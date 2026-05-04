@@ -10,6 +10,13 @@
 *.srs
 /params/
 
+# academic paper
+paper.log
+paper.out
+paper.aux
+paper.pdf
+paper/figures/
+
 # IDEs and OS files
 .idea/
 .vscode/
@@ -33,3 +40,6 @@ scripts/res
 proof.bin
 proof.json
 res/*.keys.json
+
+# lean
+.lake

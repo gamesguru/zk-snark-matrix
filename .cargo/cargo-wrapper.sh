@@ -6,12 +6,12 @@ shift
 
 CMD=("$RUSTC")
 
-if command -v sccache > /dev/null 2>&1; then
+if command -v sccache >/dev/null 2>&1; then
     CMD=(sccache "$RUSTC")
 fi
 
 MOLD_ARGS=()
-if command -v mold > /dev/null 2>&1; then
+if command -v mold >/dev/null 2>&1; then
     # Do not use mold if cross-compiling to webassembly or riscv (SP1)
     if [[ "$*" == *"wasm32"* ]] || [[ "$*" == *"riscv"* ]]; then
         : # skip mold

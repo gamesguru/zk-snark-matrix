@@ -1,8 +1,8 @@
 # ZK-Matrix-Join: Trustless Matrix Light Clients
 
-[![CI](https://github.com/gamesguru/ruma-zk/actions/workflows/ci.yml/badge.svg)](https://github.com/gamesguru/ruma-zk/actions/workflows/ci.yml) [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](#) [![Jolt zkVM](https://img.shields.io/badge/jolt-zkVM-purple.svg)](#) [![Status](https://img.shields.io/badge/status-experimental_AF-red.svg)](#)
+[![CI](https://github.com/gamesguru/ruma-zk/actions/workflows/ci.yml/badge.svg)](https://github.com/gamesguru/ruma-zk/actions/workflows/ci.yml) [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](#) [![STARK](https://img.shields.io/badge/proof-Graph--Native_STARK-purple.svg)](#) [![Status](https://img.shields.io/badge/status-experimental_AF-red.svg)](#)
 
-A Layer-2 Zero-Knowledge scaling solution for the Matrix protocol powered by **a16z's Jolt VM**.
+A Layer-2 Zero-Knowledge scaling solution for the Matrix protocol powered by **Graph-Native STARKs** over binary fields (GF(2)).
 
 We're replacing slow **Full Joins** and insecure **Partial Joins** with instant, cryptographically secure **ZK-Joins**.
 
@@ -17,7 +17,7 @@ Joining a massive Matrix room (like `#matrix:matrix.org`) sucks. You either:
 
 `zk-matrix-join` moves Matrix state resolution into a Zero-Knowledge architecture.
 
-A beefy prover node crunches the heavy State Res v2 logic inside the **Jolt zkVM**. Jolt utilizes the **Lasso** lookup argument and **Sumcheck protocol** to generate proofs that are significantly faster and "leaner" than traditional arithmetization-based zkVMs.
+A beefy prover node crunches the heavy State Res v2 logic inside a **Graph-Native STARK** circuit. The circuit uses a Beneš routing network to prove topological compliance, with Keccak-256 Merkle commitments and XOR-stretch expander graphs for proximity amplification.
 
 Instead of downloading 50MB of Auth Chain and verifying 500k signatures, servers (and browser light clients) just download the 2MB state and a tiny STARK proof. They verify it in **milliseconds**.
 
@@ -26,9 +26,9 @@ Instead of downloading 50MB of Auth Chain and verifying 500k signatures, servers
 ```mermaid
 graph TD
     subgraph Epoch Rollup Phase
-        Events[(Raw DAG Events)] --> |Sent periodically| Prover[ZK Prover Node<br/>GPU Cluster]
-        Prover --> |"Lasso + Sumcheck<br/>Generates STARK"| Jolt((Jolt zkVM))
-        Jolt --> |Returns Receipt| Res[Resident Matrix Server]
+        Events[(Raw DAG Events)] --> |Topological Sort| Prover[ZK Prover Node]
+        Prover --> |"Beneš Routing +<br/>Keccak Merkle"| STARK((Graph-Native<br/>STARK))
+        STARK --> |Returns Proof| Res[Resident Matrix Server]
     end
 
     subgraph Case 1: Server Joining Room
@@ -49,118 +49,87 @@ graph TD
     classDef state fill:#4CAF50,stroke:#333,stroke-width:2px,color:#fff;
 
     class Res,Join server;
-    class Prover,Jolt prover;
+    class Prover,STARK prover;
     class Client client;
     class State1,State2 state;
 ```
 
-Built on **Jolt RV64IMAC**, allowing formally verified Rust libraries (`ruma-lean`) to run in ZK.
+### Workspace Crates
 
-- **`ruma-zk` (The Prover):** Root-level facade that orchestrates state res and parallelizes the Jolt Prover.
-- **`ruma_zk_guest/` (The zkVM):** Formally verified logic that runs inside Jolt, proving topological compliance and state transitions.
-- **`ruma-zk-wasm/` (The Verifier):** Exposes proof verification to WebAssembly.
+- **`ruma-zk-prover`**: Core prover/verifier SDK — Beneš routing, Keccak circuit, expander graph, recursive composition.
+- **`ruma-zk-topological-air`**: Algebraic Intermediate Representation — GF(2) field, topological sort, event definitions.
+- **`ruma-zk-verifier`**: WASM-compatible proof verifier for browser and edge clients.
+- **`ruma-lean`**: Formally verified state resolution logic in Lean 4, compiled to native Rust FFI.
 
 ## Proof Tiers
 
 We support three levels of proof compression to balance proving time vs. verification cost:
 
-1.  **Raw STARK (Uncompressed):** The native Jolt output. Fastest to generate (~seconds), large size (~MBs). Ideal for server-to-server synchronization where bandwidth is cheap.
-2.  **Recursive STARK (Intermediate):** Jolt proofs wrapped in themselves. Medium size, optimized for mobile clients and high-performance verifiers.
-3.  **Groth16 SNARK (Compressed):** The "Gold Standard" for edge-verification. Smallest size (~200 bytes), can be verified on-chain (EVM) or in standard browsers via WASM in milliseconds.
+1.  **Raw STARK (Uncompressed):** The native output. Fastest to generate (~seconds), large size (~MBs). Ideal for server-to-server synchronization where bandwidth is cheap.
+2.  **Recursive STARK (Intermediate):** STARK-in-STARK recursive composition via Keccak-f[1600] circuit. Parent proofs embed sub-proof verification as additional trace columns.
+3.  **Groth16 SNARK (Compressed):** The "Gold Standard" for edge-verification. Smallest size (~200 bytes), can be verified on-chain (EVM) or in standard browsers via WASM in milliseconds. _(Planned — follow-up MSC.)_
 
 ## API Specification (Proposed)
 
-We propose new endpoints to securely retrieve these ZK rollups.
+See [MSC0000](MSC0000-zk-proven-room-joins.md) for the full specification.
 
-### 1. Retrieve Proof (`GET /zk_state_proof`)
+### `GET /_matrix/federation/unstable/org.matrix.msc0000/zk_state_proof/{roomId}`
 
 Retrieves the trustless state checkpoint for a room.
-
-**Parameters:**
-
-- `compression`: One of `uncompressed`, `intermediate`, or `groth16`.
-
-```http
-GET /_matrix/federation/v1/zk_state_proof/!room:example.com?compression=groth16
-Authorization: X-Matrix origin="joining.server",key="...",sig="..."
-```
-
-**Example Response:**
 
 ```json
 {
   "room_version": "12",
-  "proof_type": "groth16",
+  "vk_hash": "sha256:<hex_digest>",
   "checkpoint": {
-    "event_id": "$historic_cutoff",
-    "resolved_state_root_hash": "<sha256_hash>",
-    "zk_proof": "<base64_encoded_snark_proof>",
-    "program_vkey": "<jolt_vkey_hash>"
+    "public_journal": {
+      "da_root": "0xc29ab9db...",
+      "state_root": "0x259df515...",
+      "h_auth": "0x7f3a1b2c...",
+      "n_events": 43543,
+      "parent_proofs": ["0x...", "0x..."]
+    },
+    "zk_proof_bytes": "<base64_stark_proof>"
+  },
+  "delta": {
+    "recent_state_events": [
+      /* ... */
+    ]
   }
 }
 ```
 
 ## CLI Usage
 
-The primary interface is the `ruma-zk` binary.
-
 ```bash
-cargo run --release --bin ruma-zk -- [COMMAND]
+cargo run --release --bin ruma-zk-prover -- [COMMAND]
 ```
 
 ### Commands:
 
 - **`demo`**: Run a fast end-to-end simulation.
   ```bash
-  ruma-zk demo -i res/benchmark_1k.json
+  ruma-zk-prover demo -i res/benchmark_1k.json
   ```
-- **`prove`**: Generate a full cryptographic proof.
-  ```bash
-  ruma-zk prove -i res/benchmark_1k.json --compression groth16
-  ```
-- **`verify`**: Verify an existing STARK/SNARK proof.
-  ```bash
-  ruma-zk verify --proof-path proof.bin
-  ```
-
-### Options:
-
-- `-i, --input <PATH>`: Path to the Matrix state JSON fixture. Read from STDIN if omitted.
-- `-l, --limit <N>`: Limit the number of events processed (default: 1000, max: 2^24).
-- `-u, --unoptimized`: Run the full Matrix Spec State Res v2 instead of the Optimized Topological Reducer.
-- `-c, --compression <LEVEL>`: Proof compression (uncompressed, intermediate, groth16).
-- `--trace`: Enable cycle-accurate trace analysis during simulation (Warning: High CPU/RAM).
-
-## Deployment
-
-To integrate `ruma-zk` with production Matrix servers like **Synapse** or **Continuwuity**, you can bridge the CLI to a network interface using NGINX.
-
-See the [Deployment Guide](docs/deployment-guides.md) for templates on:
-
-- **Method 1: `fcgiwrap`** (Lowest overhead, UNIX-native)
-- **Method 2: Python HTTP Wrapper** (Recommended for pure JSON piping)
-
-## Security & Memory Safety
-
-To cryptographically neutralize VM-level exploits, **the entire workspace (Guest, Host, and WASM Verifier)** strictly bans `unsafe` Rust via the `#![forbid(unsafe_code)]` compiler directive. All resolution logic is offloaded to `ruma-lean`, a zero-dependency crate designed for formal verification.
 
 ## Development
 
-### Code Coverage
+```bash
+make format   # prettier + cargo fmt + clippy
+make lint     # cargo clippy (0 warnings enforced)
+make test     # 176 tests across workspace (~30s debug)
+make lean     # Lean 4 formal verification build
+```
 
-To generate a code coverage report:
+### Code Coverage
 
 ```bash
 make coverage
 ```
 
-### Parity Testing
+## Security & Memory Safety
 
-To run the Jolt parity simulation (comparing native Rust vs. proven Guest):
-
-```bash
-make test-zk
-```
+To cryptographically neutralize VM-level exploits, **the entire workspace (Prover, Verifier, and WASM)** strictly bans `unsafe` Rust via the `#![forbid(unsafe_code)]` compiler directive. All resolution logic is offloaded to `ruma-lean`, a zero-dependency crate designed for formal verification.
 
 ## License
 

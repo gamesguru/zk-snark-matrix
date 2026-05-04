@@ -1,4 +1,8 @@
+[files]
+extend-exclude = ["fixtures/*.json"]
+
 [default.extend-words]
 Groth16 = "Groth16"
 groth16 = "groth16"
 groth = "groth"
+thm = "thm"

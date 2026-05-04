@@ -1,0 +1,3 @@
+[submodule "ruma-lean"]
+	path = ruma-lean
+	url = https://github.com/gamesguru/ruma-lean.git

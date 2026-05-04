@@ -1,0 +1,13 @@
+[package]
+name = "ruma-zk-topological-air"
+version.workspace = true
+authors.workspace = true
+edition = "2021"
+description = "Topological AIR constraints for the graph-native STARK framework."
+readme = "README.md"
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

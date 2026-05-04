@@ -1,0 +1,31 @@
+[package]
+name = "ruma-zk-verifier"
+version.workspace = true
+edition = "2021"
+authors.workspace = true
+description = "Lightweight verifier for the graph-native STARK framework."
+readme = "README.md"
+repository.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = []
+wasm = ["wasm-bindgen", "getrandom", "web-time"]
+
+[dependencies]
+bincode.workspace = true
+getrandom = { version = "0.2", features = ["js"], optional = true }
+ruma-zk-prover = { workspace = true }
+ruma-zk-topological-air = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
+tiny-keccak.workspace = true
+uniffi = { version = "0.27", features = ["cli"] }
+wasm-bindgen = { version = "0.2", optional = true }
+web-time = { version = "1", optional = true }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.42"

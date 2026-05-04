@@ -728,6 +728,21 @@ Any server holding the same event set will independently derive
 the same roots, enabling divergence detection without exchanging
 the full 50--100\,MB auth chain.
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/crossover.pdf}
+\caption{Log-log comparison of constraint counts between the
+graph-native STARK architecture (this paper) and a standard RISC-V
+zkVM executing identical state resolution logic.
+The ISA emulation overhead factor $K \approx 200$ is conservative;
+production zkVMs (SP1, Jolt) typically exhibit $K = 200$--$1000$.
+At the benchmark scale ($N = 43{,}543$), the graph-native approach
+requires ${\sim}1.35 \times 10^6$ constraints versus
+${\sim}1.98 \times 10^{11}$ for the zkVM---a ${\sim}147{,}000\times$
+reduction that widens superlinearly with $N$.}
+\label{fig:crossover}
+\end{figure}
+
 \subsection{Implementation Status}
 
 The reference implementation

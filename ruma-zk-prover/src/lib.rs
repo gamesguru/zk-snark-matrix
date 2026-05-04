@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod expander;
 pub mod field;
 pub mod merkle;

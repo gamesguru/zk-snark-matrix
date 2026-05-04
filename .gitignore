@@ -15,6 +15,7 @@ paper.log
 paper.out
 paper.aux
 paper.pdf
+paper/figures/
 
 # IDEs and OS files
 .idea/

@@ -76,6 +76,10 @@ android: ##H Generate Kotlin/Android (UniFFI) bindings
 proof-bench: ##H Run topological prover benchmark
 	cargo run -p ruma-zk-prover --release -- demo
 
+.PHONY: figures
+figures: ##H Generate paper figures
+	python3 scripts/crossover_chart.py
+
 .PHONY: paper
 paper: ##H Compile paper/paper.tex to PDF
 	cd paper && pdflatex -interaction=nonstopmode paper.tex && pdflatex -interaction=nonstopmode paper.tex

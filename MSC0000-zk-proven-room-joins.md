@@ -39,6 +39,7 @@ Retrieves the latest cryptographic state checkpoint for the specified room, alon
 
 **Authentication:** Requires Server-Server signature.
 **Rate-limiting:** Yes.
+**Guest access:** This endpoint is not available to guest accounts. Guests MUST NOT be able to retrieve ZK state proofs.
 
 **Path Parameters:**
 
@@ -57,6 +58,7 @@ Returns an HTTP 200 OK with the following JSON body:
     "public_journal": {
       "da_root": "0xc29ab9db...",
       "state_root": "0x259df515...",
+      "h_auth": "0x7f3a1b2c...",
       "n_events": 43543,
       "prover_id": "0x...",
       "proof_timestamp": 1746230400,
@@ -94,7 +96,7 @@ Returns an HTTP 200 OK with the following JSON body:
   - `zk_proof_bytes` (string): The base64-encoded STARK proof payload (~150–250 KB).
   - `prover_signature` (object): The generating server's signature over `canonical_json(public_journal)`. See [Proof Signing](#proof-signing) below.
 - `delta` (object): The minimal, unverified Auth Chain events that have accumulated strictly after the `checkpoint.event_id`.
-  - `recent_state_events` (array of objects): Standard Matrix state events (PDUs). The joining server will natively execute standard state resolution over these final events on top of the checkpoint.
+  - `recent_state_events` (array of objects): Standard Matrix state events (PDUs). The joining server will natively execute standard state resolution over these final events on top of the checkpoint. Servers SHOULD generate fresh proofs frequently enough to keep the delta under 1,000 events. If the delta exceeds 10,000 events, the resident server SHOULD generate a new proof before serving this endpoint, or respond with `404` and let the joining server fall back to a full join.
 
 **Error Responses:**
 
@@ -147,11 +149,12 @@ The public journal contains all public inputs committed to the STARK proof's Fia
 
 ### Core Fields
 
-| Field        | Type    | Description                                                        |
-| ------------ | ------- | ------------------------------------------------------------------ |
-| `da_root`    | bytes32 | Keccak-256 Merkle root over the canonically sorted input event set |
-| `state_root` | bytes32 | Keccak-256 hash over the resolved state output                     |
-| `n_events`   | uint64  | Number of events in the proven DAG                                 |
+| Field        | Type    | Description                                                                                                                                                 |
+| ------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `da_root`    | bytes32 | Keccak-256 Merkle root over the canonically sorted input event set                                                                                          |
+| `state_root` | bytes32 | Keccak-256 hash over the resolved state output                                                                                                              |
+| `h_auth`     | bytes32 | Keccak-256 over the concatenated `(event_id \|\| signature)` pairs of all events verified by the prover, binding signature verification to the proven state |
+| `n_events`   | uint64  | Number of events in the proven DAG                                                                                                                          |
 
 ### Provenance Fields
 
@@ -267,6 +270,37 @@ While this MSC is in development and has not yet been merged into the official M
 
 - This proposal builds upon the partial join mechanisms discussed in **MSC3902**, providing a trustless cryptographic guarantee to the "fast join" assumption.
 
+## Room Version Requirements
+
+This MSC does **not** require a new room version. The ZK proof endpoint is additive — it introduces a new federation API endpoint and two new event types, none of which alter event formats, redaction rules, or state resolution algorithms. The proof itself is parameterized by the room version's existing state resolution rules.
+
+However, each room version that wishes to support ZK-Joins MUST have a canonical `VK_HASH` defined in the specification. Until a room version's `VK_HASH` is published and audited, ZK-Joins for that room version are not available. Servers encountering an unsupported room version MUST fall back to full or partial joins.
+
+## Backwards Compatibility
+
+This proposal is fully backwards-compatible:
+
+- **Servers that do not support this MSC** simply do not expose the `GET /zk_state_proof` endpoint. Joining servers that attempt to call it will receive a `404` and fall back to existing join mechanisms (full join or MSC3902 partial join).
+- **No changes to existing federation traffic.** The `/send_join`, `/make_join`, and `/state` endpoints are unmodified.
+- **No changes to event formats.** Existing room events are not altered. The new `m.room.epoch_proof` and `m.room.identity_proof` types are additive state events and EDUs, respectively.
+- **Graceful degradation.** If a resident server's proof is stale, corrupted, or unavailable, the joining server simply falls back to the standard join path. No federation breakage occurs.
+
+## Potential Issues
+
+- **Proving cost for small servers:** Generating a STARK proof for a large room (e.g., 43k events) requires 10-45 minutes of heavily parallelized GPU/CPU computation. Small homeservers without dedicated hardware may be unable to generate proofs. This is mitigated by the MapReduce architecture (distributed proving) and by allowing servers to serve proofs generated by other federation peers via the `prover_signature` attribution.
+- **Proof freshness and delta size:** If a resident server's checkpoint is weeks old, the unverified `delta` may contain thousands of events, partially negating the speed benefit. Servers SHOULD regenerate proofs at least bi-weekly or every 10,000 events. A future MSC could introduce a `max_delta_size` negotiation parameter.
+- **Data availability attacks:** A valid proof attests correct execution over _some_ event set, but cannot prove that the prover included all events. A malicious server could omit inconvenient events. Mitigated by `da_root` multi-server attestation, but this requires querying multiple federation peers, which may not always be possible (e.g., single-server rooms).
+- **VK_HASH governance:** The canonical Verification Key Hash for each room version must be published via the Matrix specification process. If the circuit is updated (e.g., to fix a bug), all servers must update their `VK_HASH` simultaneously, which is operationally complex.
+- **Clock skew:** The `proof_timestamp` in the public journal relies on the prover's system clock. Significant clock skew could cause valid proofs to be rejected by time-window checks. Servers SHOULD accept proofs with timestamps within a reasonable tolerance (e.g., plus or minus 5 minutes).
+- **Proof size:** Raw STARK proofs are approximately 150-250 KB. While small relative to a 50-100 MB auth chain, this is still non-trivial for bandwidth-constrained environments. Future compression (e.g., Groth16 wrapping) could reduce this to approximately 200 bytes.
+
+## Alternatives
+
+- **General-purpose zkVMs (SP1, Jolt, RISC Zero):** Instead of a domain-specific graph-native STARK, the state resolution logic could be compiled to RISC-V and proven inside a general-purpose zkVM. This offers better developer ergonomics but incurs a 100-1000x overhead due to CPU emulation and global memory permutation arguments. The accompanying academic paper demonstrates this asymptotic gap in detail.
+- **Extend `/send_join` instead of a new endpoint:** The ZK proof could be an optional field in the existing `/send_join` response. This was rejected because (a) it complicates the existing endpoint's semantics, (b) the proof is generated asynchronously and may not be available at join time, and (c) a dedicated endpoint allows cleaner versioning and capability negotiation.
+- **SHA-256 instead of Keccak-256 for Merkle roots:** Matrix traditionally uses SHA-256. Keccak-256 was chosen because its sponge construction maps directly to binary field (GF(2)) constraint arithmetic with minimal overhead, approximately 200 constraints per absorption round, while SHA-256's modular addition chains require expensive carry propagation in binary fields.
+- **SNARKs instead of STARKs:** Groth16 SNARKs produce approximately 200-byte proofs verifiable in milliseconds, but require a trusted setup ceremony per circuit. STARKs are transparent (no trusted setup), post-quantum secure, and align with Matrix's decentralized ethos. A hybrid approach (STARK for proving, Groth16 wrapper for edge verification) is planned for a follow-up MSC.
+
 ---
 
 ## MSC Checklist
@@ -282,34 +316,34 @@ MSC authors, feel free to ask in a thread on your PR or in the
 [#matrix-spec:matrix.org](https://matrix.to/#/#matrix-spec:matrix.org) room for
 clarification of any of these points.
 
-- [ ] Are [appropriate implementation(s)](https://spec.matrix.org/proposals/#implementing-a-proposal) specified in the MSC’s PR description?
+- [x] Are [appropriate implementation(s)](https://spec.matrix.org/proposals/#implementing-a-proposal) specified in the MSC's PR description?
 - [ ] Are all MSCs that this MSC depends on already accepted?
-- [ ] For each endpoint that is introduced or modified:
-  - [ ] Have authentication requirements been specified?
-  - [ ] Have rate-limiting requirements been specified?
-  - [ ] Have guest access requirements been specified?
-  - [ ] Are error responses specified?
-    - [ ] Does each error case have a specified `errcode` (e.g. `M_FORBIDDEN`) and HTTP status code?
+- [x] For each endpoint that is introduced or modified:
+  - [x] Have authentication requirements been specified?
+  - [x] Have rate-limiting requirements been specified?
+  - [x] Have guest access requirements been specified?
+  - [x] Are error responses specified?
+    - [x] Does each error case have a specified `errcode` (e.g. `M_FORBIDDEN`) and HTTP status code?
       - [ ] If a new `errcode` is introduced, is it clear that it is new?
-  - [ ] Are the [endpoint conventions](https://spec.matrix.org/latest/appendices/#conventions-for-matrix-apis) honoured?
-    - [ ] Do HTTP endpoints `use_underscores_like_this`?
-    - [ ] Will the endpoint return unbounded data? If so, has pagination been considered?
+  - [x] Are the [endpoint conventions](https://spec.matrix.org/latest/appendices/#conventions-for-matrix-apis) honoured?
+    - [x] Do HTTP endpoints `use_underscores_like_this`?
+    - [x] Will the endpoint return unbounded data? If so, has pagination been considered?
     - [ ] If the endpoint utilises pagination, is it consistent with [the appendices](https://spec.matrix.org/latest/appendices/#pagination)?
-- [ ] Will the MSC require a new room version, and if so, has that been made clear?
-  - [ ] Is the reason for a new room version clearly stated? For example, modifying the set of redacted fields changes how event IDs are calculated, thus requiring a new room version.
-- [ ] Are backwards-compatibility concerns appropriately addressed?
-- [ ] An introduction exists and clearly outlines the problem being solved. Ideally, the first paragraph should be understandable by a non-technical audience.
+- [x] Will the MSC require a new room version, and if so, has that been made clear?
+  - [x] Is the reason for a new room version clearly stated? For example, modifying the set of redacted fields changes how event IDs are calculated, thus requiring a new room version.
+- [x] Are backwards-compatibility concerns appropriately addressed?
+- [x] An introduction exists and clearly outlines the problem being solved. Ideally, the first paragraph should be understandable by a non-technical audience.
 - [ ] All outstanding threads are resolved
   - [ ] All feedback is incorporated into the proposal text itself, either as a fix or noted as an alternative
-- [ ] There is a dedicated "Security Considerations" section which detail any possible attacks/vulnerabilities this proposal may introduce, even if this is "None.". See [RFC3552](https://datatracker.ietf.org/doc/html/rfc3552) for things to think about, but in particular pay attention to the [OWASP Top Ten](https://owasp.org/www-project-top-ten/).
-- [ ] The other section headings in the template are optional, but even if they are omitted, the relevant details should still be considered somewhere in the text of the proposal. Those section headings are:
-  - [ ] Introduction
-  - [ ] Proposal text
-  - [ ] Potential issues
-  - [ ] Alternatives
-  - [ ] Unstable prefix
-  - [ ] Dependencies
-- [ ] Stable identifiers are used throughout the proposal, except for the unstable prefix section
-  - [ ] Unstable prefixes [consider](https://github.com/matrix-org/matrix-spec-proposals/blob/main/README.md#unstable-prefixes) the awkward accepted-but-not-merged state
-  - [ ] Chosen unstable prefixes do not pollute any global namespace (use “org.matrix.mscXXXX”, not “org.matrix”).
+- [x] There is a dedicated "Security Considerations" section which detail any possible attacks/vulnerabilities this proposal may introduce, even if this is "None.". See [RFC3552](https://datatracker.ietf.org/doc/html/rfc3552) for things to think about, but in particular pay attention to the [OWASP Top Ten](https://owasp.org/www-project-top-ten/).
+- [x] The other section headings in the template are optional, but even if they are omitted, the relevant details should still be considered somewhere in the text of the proposal. Those section headings are:
+  - [x] Introduction
+  - [x] Proposal text
+  - [x] Potential issues
+  - [x] Alternatives
+  - [x] Unstable prefix
+  - [x] Dependencies
+- [x] Stable identifiers are used throughout the proposal, except for the unstable prefix section
+  - [x] Unstable prefixes [consider](https://github.com/matrix-org/matrix-spec-proposals/blob/main/README.md#unstable-prefixes) the awkward accepted-but-not-merged state
+  - [x] Chosen unstable prefixes do not pollute any global namespace (use "org.matrix.mscXXXX", not "org.matrix").
 - [ ] Changes have applicable [Sign Off](https://github.com/matrix-org/matrix-spec-proposals/blob/main/CONTRIBUTING.md#sign-off) from all authors/editors/contributors

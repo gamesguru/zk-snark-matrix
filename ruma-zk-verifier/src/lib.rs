@@ -21,8 +21,8 @@ pub fn verify_stark(proof: &StarkProof) -> Result<(), String> {
 
 /// Verify a STARK proof from raw bytes (bincode-serialized).
 pub fn verify_stark_bytes(proof_bytes: &[u8]) -> Result<(), String> {
-    let proof: StarkProof = bincode::deserialize(proof_bytes)
-        .map_err(|e| format!("deserialization failed: {}", e))?;
+    let proof: StarkProof =
+        bincode::deserialize(proof_bytes).map_err(|e| format!("deserialization failed: {}", e))?;
     verify_stark(&proof)
 }
 

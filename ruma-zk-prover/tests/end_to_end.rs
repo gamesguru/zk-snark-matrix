@@ -95,3 +95,106 @@ fn end_to_end_n1024() {
         assert_eq!(routed[p], i);
     }
 }
+
+// ── Full STARK pipeline tests (prove → serialize → verify) ──
+
+use ruma_zk_prover::stark::{prove, verify, PublicJournal, SOUNDNESS_QUERIES};
+
+fn make_journal(n: u64) -> PublicJournal {
+    use ruma_zk_prover::merkle::keccak256;
+    PublicJournal {
+        da_root: keccak256(b"test-da-root"),
+        state_root: keccak256(b"test-state-root"),
+        h_auth: keccak256(b"test-h-auth"),
+        n_events: n,
+    }
+}
+
+#[test]
+fn end_to_end_stark_small() {
+    // 8 events, reversal permutation → full proof pipeline
+    let n = 8;
+    let perm: Vec<usize> = (0..n).rev().collect();
+    let network = BenesNetwork::from_permutation(&perm);
+    let inputs: Vec<GF2> = (0..n).map(|i| GF2::new(i as u8 & 1)).collect();
+    let trace = ExecutionTrace::build(&inputs, &network);
+
+    assert_eq!(trace.verify_constraints(), 0);
+
+    let journal = make_journal(n as u64);
+    let proof = prove(&trace, journal);
+
+    // Verify
+    assert!(verify(&proof).is_ok(), "proof should verify");
+
+    // Serialize → deserialize roundtrip
+    let bytes = bincode::serialize(&proof).expect("serialize");
+    eprintln!("  [e2e] proof serialized: {} bytes", bytes.len());
+    let deserialized: ruma_zk_prover::stark::StarkProof =
+        bincode::deserialize(&bytes).expect("deserialize");
+    assert!(
+        verify(&deserialized).is_ok(),
+        "deserialized proof should verify"
+    );
+}
+
+#[test]
+fn end_to_end_stark_n64() {
+    // 64 events, pseudo-random permutation
+    let n = 64;
+    let mut perm: Vec<usize> = (0..n).collect();
+    for i in (1..n).rev() {
+        let j = (i * 37 + 7) % (i + 1);
+        perm.swap(i, j);
+    }
+
+    let network = BenesNetwork::from_permutation(&perm);
+    let inputs: Vec<GF2> = (0..n).map(|i| GF2::new(i as u8 & 1)).collect();
+    let trace = ExecutionTrace::build(&inputs, &network);
+
+    assert_eq!(trace.verify_constraints(), 0);
+
+    let journal = make_journal(n as u64);
+    let proof = prove(&trace, journal);
+
+    assert_eq!(proof.stretched_openings.len(), SOUNDNESS_QUERIES);
+    assert!(verify(&proof).is_ok(), "n=64 proof should verify");
+
+    // Serialized proof size
+    let bytes = bincode::serialize(&proof).expect("serialize");
+    eprintln!(
+        "  [e2e] n={}: proof {} bytes (~{} KB), degree={}",
+        n,
+        bytes.len(),
+        bytes.len() / 1024,
+        proof.expander_degree
+    );
+}
+
+#[test]
+fn end_to_end_stark_tamper_detection() {
+    let n = 8;
+    let perm: Vec<usize> = (0..n).rev().collect();
+    let network = BenesNetwork::from_permutation(&perm);
+    let inputs: Vec<GF2> = (0..n).map(|i| GF2::new(i as u8 & 1)).collect();
+    let trace = ExecutionTrace::build(&inputs, &network);
+
+    let journal = make_journal(n as u64);
+    let proof = prove(&trace, journal);
+
+    // Serialize, tamper, deserialize, verify should fail
+    let mut bytes = bincode::serialize(&proof).expect("serialize");
+    // Flip a byte deep in the proof data
+    if bytes.len() > 200 {
+        bytes[200] ^= 0xFF;
+    }
+    let tampered: Result<ruma_zk_prover::stark::StarkProof, _> = bincode::deserialize(&bytes);
+    if let Ok(p) = tampered {
+        // If deserialization still succeeds, verification should catch it
+        assert!(
+            verify(&p).is_err(),
+            "tampered proof should fail verification"
+        );
+    }
+    // If deserialization fails, that's also fine — the tamper was caught
+}

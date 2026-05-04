@@ -16,3 +16,6 @@ ruma-zk-topological-air = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 tiny-keccak.workspace = true
+
+[dev-dependencies]
+bincode.workspace = true

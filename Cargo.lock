@@ -843,6 +843,7 @@ version = "0.1.4"
 dependencies = [
  "bincode",
  "getrandom",
+ "ruma-zk-prover",
  "ruma-zk-topological-air",
  "serde",
  "serde_json",

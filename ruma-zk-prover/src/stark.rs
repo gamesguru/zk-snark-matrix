@@ -33,7 +33,7 @@ pub struct ColumnOpening {
 }
 
 /// The public journal committed to by the proof.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicJournal {
     pub da_root: [u8; 32],
     pub state_root: [u8; 32],
@@ -44,7 +44,7 @@ pub struct PublicJournal {
 /// A complete non-interactive STARK proof.
 ///
 /// π = (commitment_root, {column openings}, {pre-image openings})
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StarkProof {
     /// Public journal (bound to Fiat-Shamir transcript).
     pub journal: PublicJournal,

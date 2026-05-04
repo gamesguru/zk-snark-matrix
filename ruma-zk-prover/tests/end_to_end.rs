@@ -372,7 +372,6 @@ fn end_to_end_proof_bytes_roundtrip() {
 }
 
 #[test]
-#[ignore] // ~120s in debug: recursive GF(2) Keccak. Use --release or --ignored.
 fn end_to_end_recursive_proof() {
     use ruma_zk_prover::stark::{prove_recursive, PublicJournal};
 

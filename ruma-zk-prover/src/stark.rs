@@ -64,6 +64,10 @@ pub struct StarkProof {
     /// Zero if auth was not included in this proof.
     #[serde(default)]
     pub auth_column_count: usize,
+    /// Number of binary GF(2) routing columns (the first N columns).
+    /// Columns beyond this index contain arbitrary byte data (auth, recursive witnesses).
+    #[serde(default)]
+    pub routing_column_count: usize,
 }
 
 /// Serialize the execution trace into column-major byte vectors.
@@ -274,6 +278,7 @@ pub fn prove_with_auth(
         expander_degree: expander.degree,
         original_columns: n,
         auth_column_count,
+        routing_column_count: n - auth_column_count,
     }
 }
 
@@ -363,13 +368,17 @@ pub fn verify(proof: &StarkProof) -> Result<(), String> {
             let preimage_idx = query_idx * proof.expander_degree + d;
             let col_data = &proof.preimage_openings[preimage_idx].data;
 
-            // Each byte is a GF2 value (0 or 1)
-            for &byte in col_data {
-                if byte > 1 {
-                    return Err(format!(
-                        "query {}, neighbor {}: non-binary value {} in trace",
-                        query_idx, d, byte
-                    ));
+            // Each byte in a routing column is a GF2 value (0 or 1).
+            // Auth and recursive columns contain arbitrary byte data.
+            let neighbor_col_idx = proof.preimage_openings[preimage_idx].column_index;
+            if neighbor_col_idx < proof.routing_column_count {
+                for &byte in col_data {
+                    if byte > 1 {
+                        return Err(format!(
+                            "query {}, neighbor {}: non-binary value {} in trace",
+                            query_idx, d, byte
+                        ));
+                    }
                 }
             }
         }
@@ -511,6 +520,7 @@ pub fn prove_recursive(
         expander_degree: expander.degree,
         original_columns: n,
         auth_column_count,
+        routing_column_count: n_routing,
     };
 
     (proof, parent_proof_hashes)

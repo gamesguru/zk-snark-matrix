@@ -19,9 +19,7 @@
 //! 4. **Binary validation**: All trace bytes are 0 or 1
 
 use crate::expander::DEFAULT_STRETCH;
-use crate::keccak_circuit::{
-    keccak256_circuit, verify_keccak_constraints, KeccakWitness, STATE_LANES,
-};
+use crate::keccak_circuit::{keccak256_circuit, verify_keccak_constraints, KeccakWitness};
 use crate::merkle::keccak256;
 use crate::stark::{StarkProof, SOUNDNESS_QUERIES};
 use ruma_zk_topological_air::field::GF2;

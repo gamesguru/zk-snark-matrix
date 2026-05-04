@@ -176,9 +176,9 @@ pub struct KeccakWitness {
 
 fn theta(state: &KeccakState) -> KeccakState {
     let mut c = [[GF2::ZERO; LANE_BITS]; 5];
-    for x in 0..5 {
-        for z in 0..LANE_BITS {
-            c[x][z] = state.get(x, 0, z)
+    for (x, c_x) in c.iter_mut().enumerate() {
+        for (z, c_xz) in c_x.iter_mut().enumerate() {
+            *c_xz = state.get(x, 0, z)
                 + state.get(x, 1, z)
                 + state.get(x, 2, z)
                 + state.get(x, 3, z)
@@ -204,9 +204,8 @@ fn theta(state: &KeccakState) -> KeccakState {
 
 fn rho(state: &KeccakState) -> KeccakState {
     let mut result = KeccakState::default();
-    for x in 0..5 {
-        for y in 0..5 {
-            let offset = RHO_OFFSETS[x][y];
+    for (x, offsets_row) in RHO_OFFSETS.iter().enumerate() {
+        for (y, &offset) in offsets_row.iter().enumerate() {
             for z in 0..LANE_BITS {
                 let new_z = (z + offset) % LANE_BITS;
                 result.set(x, y, new_z, state.get(x, y, z));

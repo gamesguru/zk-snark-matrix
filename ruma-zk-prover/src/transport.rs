@@ -116,16 +116,28 @@ pub fn build_response(
                 state_root: hex::encode(journal.state_root),
                 h_auth: hex::encode(journal.h_auth),
                 n_events: journal.n_events,
-                prover_id: None,
-                proof_timestamp: Some(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                ),
-                epoch_range: Some([0, journal.n_events]),
-                merge_base: None,
-                parent_proofs: vec![],
+                prover_id: if journal.prover_id == [0; 32] {
+                    None
+                } else {
+                    Some(hex::encode(journal.prover_id))
+                },
+                proof_timestamp: if journal.proof_timestamp == 0 {
+                    Some(
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs(),
+                    )
+                } else {
+                    Some(journal.proof_timestamp)
+                },
+                epoch_range: Some(journal.epoch_range),
+                merge_base: if journal.merge_base == [0; 32] {
+                    None
+                } else {
+                    Some(hex::encode(journal.merge_base))
+                },
+                parent_proofs: journal.parent_proofs.iter().map(hex::encode).collect(),
             },
             zk_proof_bytes: encode_proof_bytes(proof)?,
             prover_signature: ProverSignature {
@@ -230,6 +242,7 @@ mod tests {
             state_root: keccak256(b"test-state"),
             h_auth: keccak256(b"test-auth"),
             n_events: 8,
+            ..Default::default()
         };
 
         let proof = crate::stark::prove(&trace, journal);
@@ -256,6 +269,7 @@ mod tests {
             state_root: keccak256(b"test-state"),
             h_auth: keccak256(b"test-auth"),
             n_events: 8,
+            ..Default::default()
         };
 
         let proof = crate::stark::prove(&trace, journal);

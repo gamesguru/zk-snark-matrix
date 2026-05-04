@@ -20,23 +20,28 @@ pub struct Transcript {
 impl Transcript {
     /// Create a new transcript initialized with the public journal.
     ///
-    /// The journal fields (da_root, state_root, h_auth, n_events)
-    /// are absorbed in canonical order to produce a deterministic
-    /// initial state.
-    pub fn new(
-        da_root: &[u8; 32],
-        state_root: &[u8; 32],
-        h_auth: &[u8; 32],
-        n_events: u64,
-    ) -> Self {
-        let mut state = Vec::with_capacity(128);
+    /// All journal fields (core + provenance) are absorbed in canonical
+    /// order to produce a deterministic initial state.
+    pub fn new(journal: &crate::stark::PublicJournal) -> Self {
+        let mut state = Vec::with_capacity(256);
         // Domain separator
         state.extend_from_slice(b"graph-native-stark-v1");
-        // Public journal fields in canonical order
-        state.extend_from_slice(da_root);
-        state.extend_from_slice(state_root);
-        state.extend_from_slice(h_auth);
-        state.extend_from_slice(&n_events.to_le_bytes());
+        // Core fields
+        state.extend_from_slice(&journal.da_root);
+        state.extend_from_slice(&journal.state_root);
+        state.extend_from_slice(&journal.h_auth);
+        state.extend_from_slice(&journal.n_events.to_le_bytes());
+        // Provenance fields
+        state.extend_from_slice(&journal.prover_id);
+        state.extend_from_slice(&journal.proof_timestamp.to_le_bytes());
+        state.extend_from_slice(&journal.epoch_range[0].to_le_bytes());
+        state.extend_from_slice(&journal.epoch_range[1].to_le_bytes());
+        state.extend_from_slice(&journal.merge_base);
+        // Parent proofs: length-prefixed for unambiguous parsing
+        state.extend_from_slice(&(journal.parent_proofs.len() as u64).to_le_bytes());
+        for pp in &journal.parent_proofs {
+            state.extend_from_slice(pp);
+        }
         Transcript { state }
     }
 
@@ -79,15 +84,28 @@ impl Transcript {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stark::PublicJournal;
+
+    fn make_journal(da: [u8; 32], sr: [u8; 32], ha: [u8; 32], n: u64) -> PublicJournal {
+        PublicJournal {
+            da_root: da,
+            state_root: sr,
+            h_auth: ha,
+            n_events: n,
+            prover_id: [0; 32],
+            proof_timestamp: 0,
+            epoch_range: [0, n],
+            merge_base: [0; 32],
+            parent_proofs: vec![],
+        }
+    }
 
     #[test]
     fn test_transcript_deterministic() {
-        let da = [0xAA; 32];
-        let sr = [0xBB; 32];
-        let ha = [0xCC; 32];
+        let j = make_journal([0xAA; 32], [0xBB; 32], [0xCC; 32], 1000);
 
-        let mut t1 = Transcript::new(&da, &sr, &ha, 1000);
-        let mut t2 = Transcript::new(&da, &sr, &ha, 1000);
+        let mut t1 = Transcript::new(&j);
+        let mut t2 = Transcript::new(&j);
 
         t1.absorb(b"merkle_root_abc");
         t2.absorb(b"merkle_root_abc");
@@ -99,12 +117,11 @@ mod tests {
 
     #[test]
     fn test_different_journals_different_indices() {
-        let da = [0xAA; 32];
-        let sr = [0xBB; 32];
-        let ha = [0xCC; 32];
+        let j1 = make_journal([0xAA; 32], [0xBB; 32], [0xCC; 32], 1000);
+        let j2 = make_journal([0xAA; 32], [0xBB; 32], [0xCC; 32], 1001);
 
-        let mut t1 = Transcript::new(&da, &sr, &ha, 1000);
-        let mut t2 = Transcript::new(&da, &sr, &ha, 1001); // different n_events
+        let mut t1 = Transcript::new(&j1);
+        let mut t2 = Transcript::new(&j2);
 
         t1.absorb(b"root");
         t2.absorb(b"root");
@@ -116,7 +133,8 @@ mod tests {
 
     #[test]
     fn test_indices_in_range() {
-        let mut t = Transcript::new(&[0; 32], &[0; 32], &[0; 32], 0);
+        let j = make_journal([0; 32], [0; 32], [0; 32], 0);
+        let mut t = Transcript::new(&j);
         t.absorb(b"test");
         let indices = t.squeeze_indices(843, 1000);
         assert_eq!(indices.len(), 843);

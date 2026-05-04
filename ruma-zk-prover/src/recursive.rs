@@ -68,10 +68,23 @@ pub fn recursive_verify_witness(sub_proof: &StarkProof) -> RecursiveVerifierWitn
     // Build the transcript input bytes (same as Transcript::new + absorb)
     let mut transcript_input = Vec::new();
     transcript_input.extend_from_slice(b"graph-native-stark-v1");
+    // Core fields
     transcript_input.extend_from_slice(&sub_proof.journal.da_root);
     transcript_input.extend_from_slice(&sub_proof.journal.state_root);
     transcript_input.extend_from_slice(&sub_proof.journal.h_auth);
     transcript_input.extend_from_slice(&sub_proof.journal.n_events.to_le_bytes());
+    // Provenance fields
+    transcript_input.extend_from_slice(&sub_proof.journal.prover_id);
+    transcript_input.extend_from_slice(&sub_proof.journal.proof_timestamp.to_le_bytes());
+    transcript_input.extend_from_slice(&sub_proof.journal.epoch_range[0].to_le_bytes());
+    transcript_input.extend_from_slice(&sub_proof.journal.epoch_range[1].to_le_bytes());
+    transcript_input.extend_from_slice(&sub_proof.journal.merge_base);
+    transcript_input
+        .extend_from_slice(&(sub_proof.journal.parent_proofs.len() as u64).to_le_bytes());
+    for pp in &sub_proof.journal.parent_proofs {
+        transcript_input.extend_from_slice(pp);
+    }
+    // Commitment root
     transcript_input.extend_from_slice(&sub_proof.commitment_root);
 
     // Derive challenge indices using Keccak circuit
@@ -320,6 +333,7 @@ mod tests {
             state_root: keccak256(b"test-state"),
             h_auth: keccak256(b"test-auth"),
             n_events: n as u64,
+            ..Default::default()
         };
 
         prove(&trace, journal)

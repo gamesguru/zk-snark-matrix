@@ -227,12 +227,21 @@ fn main() {
             println!("    n_events:   {}", n_events);
             println!("    n_resolved: {}", resolved.len());
 
+            // ── merge_base: hash of m.room.create event ──
+            let create_event = events.iter().find(|e| e.event_type == "m.room.create");
+            let merge_base = create_event
+                .map(|e| ruma_zk_prover::merkle::keccak256(e.event_id.as_bytes()))
+                .unwrap_or([0u8; 32]);
+
             // ── STARK Proof Generation (Phase 3) ──
             let journal = ruma_zk_prover::stark::PublicJournal {
                 da_root,
                 state_root,
                 h_auth,
                 n_events: n_events as u64,
+                epoch_range: [0, n_events as u64],
+                merge_base,
+                ..Default::default()
             };
 
             let start = Instant::now();

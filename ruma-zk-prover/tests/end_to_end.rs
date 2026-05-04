@@ -107,6 +107,7 @@ fn make_journal(n: u64) -> PublicJournal {
         state_root: keccak256(b"test-state-root"),
         h_auth: keccak256(b"test-h-auth"),
         n_events: n,
+        ..Default::default()
     }
 }
 
@@ -387,6 +388,7 @@ fn end_to_end_recursive_proof() {
             state_root: [seed + 1; 32],
             h_auth: [seed + 2; 32],
             n_events: n as u64,
+            ..Default::default()
         };
 
         prove(&trace, journal)
@@ -410,6 +412,7 @@ fn end_to_end_recursive_proof() {
         state_root: [0xDD; 32],
         h_auth: [0xEE; 32],
         n_events: 16, // 8 + 8 events aggregated
+        ..Default::default()
     };
 
     // Generate recursive proof
@@ -441,6 +444,7 @@ fn end_to_end_recursive_proof() {
             state_root: [0xDD; 32],
             h_auth: [0xEE; 32],
             n_events: 16,
+            ..Default::default()
         },
     );
     assert!(

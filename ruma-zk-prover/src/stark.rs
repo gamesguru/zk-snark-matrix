@@ -34,12 +34,33 @@ pub struct ColumnOpening {
 }
 
 /// The public journal committed to by the proof.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// All fields are absorbed into the Fiat-Shamir transcript.
+/// Core fields (da_root through n_events) define the proven computation.
+/// Provenance fields bind the proof to a specific server, time, and epoch chain.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PublicJournal {
+    // ── Core fields ──
     pub da_root: [u8; 32],
     pub state_root: [u8; 32],
     pub h_auth: [u8; 32],
     pub n_events: u64,
+    // ── Provenance fields (MSC0000 §Public Journal Schema) ──
+    /// `Keccak-256(server_name)` of the generating homeserver.
+    #[serde(default)]
+    pub prover_id: [u8; 32],
+    /// Unix epoch (seconds) when the proof was generated.
+    #[serde(default)]
+    pub proof_timestamp: u64,
+    /// Inclusive event index range this proof covers: `[start, end]`.
+    #[serde(default)]
+    pub epoch_range: [u64; 2],
+    /// Hash of the room's `m.room.create` event (anchors the proof chain).
+    #[serde(default)]
+    pub merge_base: [u8; 32],
+    /// Hashes of sub-proofs recursively folded into this proof.
+    #[serde(default)]
+    pub parent_proofs: Vec<[u8; 32]>,
 }
 
 /// A complete non-interactive STARK proof.
@@ -239,12 +260,7 @@ pub fn prove_with_auth(
     eprintln!("  [stark] commitment: {}", hex::encode(commitment_root));
 
     // Phase 3: Fiat-Shamir challenge generation
-    let mut transcript = Transcript::new(
-        &journal.da_root,
-        &journal.state_root,
-        &journal.h_auth,
-        journal.n_events,
-    );
+    let mut transcript = Transcript::new(&journal);
     transcript.absorb(&commitment_root);
     let challenge_indices = transcript.squeeze_indices(SOUNDNESS_QUERIES, expander.m);
 
@@ -295,12 +311,7 @@ pub fn verify(proof: &StarkProof) -> Result<(), String> {
     let expander = ExpanderMatrix::from_seed(n, DEFAULT_STRETCH, DEFAULT_DEGREE, DEFAULT_SEED);
 
     // Reconstruct challenge indices from transcript
-    let mut transcript = Transcript::new(
-        &proof.journal.da_root,
-        &proof.journal.state_root,
-        &proof.journal.h_auth,
-        proof.journal.n_events,
-    );
+    let mut transcript = Transcript::new(&proof.journal);
     transcript.absorb(&proof.commitment_root);
     let challenge_indices = transcript.squeeze_indices(SOUNDNESS_QUERIES, expander.m);
 
@@ -484,12 +495,7 @@ pub fn prove_recursive(
     let (commitment_root, stretched_leaf_hashes) = commit_columns(&stretched_columns);
     let (_orig_root, orig_leaf_hashes) = commit_columns(&original_columns);
 
-    let mut transcript = Transcript::new(
-        &journal.da_root,
-        &journal.state_root,
-        &journal.h_auth,
-        journal.n_events,
-    );
+    let mut transcript = Transcript::new(&journal);
     transcript.absorb(&commitment_root);
     let challenge_indices = transcript.squeeze_indices(SOUNDNESS_QUERIES, expander.m);
 
@@ -543,6 +549,7 @@ mod tests {
             state_root: [0xBB; 32],
             h_auth: [0xCC; 32],
             n_events: 4,
+            ..Default::default()
         };
 
         prove(&trace, journal)
@@ -599,6 +606,7 @@ mod tests {
             state_root: [0x22; 32],
             h_auth: [0x33; 32],
             n_events: 8,
+            ..Default::default()
         };
 
         let proof = prove(&trace, journal);
@@ -628,6 +636,7 @@ mod tests {
             state_root: [0x22; 32],
             h_auth: [0x33; 32],
             n_events: 4,
+            ..Default::default()
         };
 
         let (recursive_proof, parent_hashes) = prove_recursive(&trace, journal, &[], &[sub_proof]);
@@ -655,6 +664,7 @@ mod tests {
             state_root: [0x22; 32],
             h_auth: [0x33; 32],
             n_events: 4,
+            ..Default::default()
         };
 
         let base_proof = prove(&trace, journal.clone());
@@ -683,6 +693,7 @@ mod tests {
                 state_root: [0xEE; 32],
                 h_auth: [0xDD; 32],
                 n_events: 4,
+                ..Default::default()
             },
         );
 
@@ -694,6 +705,7 @@ mod tests {
                 state_root: [0x00; 32],
                 h_auth: [0x00; 32],
                 n_events: 8,
+                ..Default::default()
             },
             &[],
             &[proof1, proof2],
@@ -722,6 +734,7 @@ mod tests {
             state_root: [0; 32],
             h_auth: [0; 32],
             n_events: 4,
+            ..Default::default()
         };
 
         // Should panic because the sub-proof is invalid

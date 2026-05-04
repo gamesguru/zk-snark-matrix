@@ -281,7 +281,8 @@ fn main() {
                     println!("    verify:     {:?} ✓", verify_time);
                 }
                 Err(e) => {
-                    println!("    verify:     FAILED — {}", e);
+                    eprintln!("    verify:     FAILED — {}", e);
+                    std::process::exit(1);
                 }
             }
         }

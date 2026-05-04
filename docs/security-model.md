@@ -160,7 +160,7 @@ the auth chain, the verifier relies on **multi-server attestation**:
 - The verifier extracts `da_root` from the STARK's public journal.
 - The verifier asks N federation peers: "what is your `da_root` for
   this room?"
-- If the honest minority agrees on the same root, the event set is
+- If the honest majority agrees on the same root, the event set is
   confirmed complete and the proof is accepted.
 - If roots diverge, the verifier queries `/get_missing_events` to
   identify what was omitted before accepting any proof.

@@ -242,34 +242,39 @@ pub fn verify_recursive_constraints(witness: &RecursiveVerifierWitness) -> usize
 
 /// Serialize the recursive verifier witness into column bytes for trace embedding.
 ///
-/// Returns one column per Keccak round witness (the χ intermediate states),
-/// plus one column for the verification result flag.
+/// Returns a compact column set per sub-proof: the witness commitments
+/// (hashed down from all rounds) plus the verification result flag.
+///
+/// Instead of emitting ~100K columns (one per Keccak round), we hash
+/// all transcript and Merkle witnesses into two 32-byte commitments.
+/// The full round witnesses remain in RecursiveVerifierWitness for
+/// constraint verification; only the commitments go into the parent trace.
 pub fn recursive_witness_to_columns(witness: &RecursiveVerifierWitness) -> Vec<Vec<u8>> {
     let mut columns = Vec::new();
 
-    // Emit all transcript Keccak witnesses as columns (packed lane bytes)
+    // Hash all transcript witnesses into a single commitment
+    let mut transcript_data = Vec::new();
     for kw in &witness.transcript_witnesses {
         for round in &kw.rounds {
-            let mut col = Vec::with_capacity(STATE_LANES * 8);
             for &lane in &round.after_chi.lanes {
-                col.extend_from_slice(&lane.to_le_bytes());
+                transcript_data.extend_from_slice(&lane.to_le_bytes());
             }
-            columns.push(col);
         }
     }
+    columns.push(keccak256(&transcript_data).to_vec());
 
-    // Emit all Merkle Keccak witnesses as columns
+    // Hash all Merkle witnesses into a single commitment
+    let mut merkle_data = Vec::new();
     for kw in &witness.merkle_witnesses {
         for round in &kw.rounds {
-            let mut col = Vec::with_capacity(STATE_LANES * 8);
             for &lane in &round.after_chi.lanes {
-                col.extend_from_slice(&lane.to_le_bytes());
+                merkle_data.extend_from_slice(&lane.to_le_bytes());
             }
-            columns.push(col);
         }
     }
+    columns.push(keccak256(&merkle_data).to_vec());
 
-    // Final column: verification result
+    // Verification result flag
     columns.push(vec![witness.is_valid.val()]);
 
     columns

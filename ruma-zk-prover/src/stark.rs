@@ -622,9 +622,11 @@ mod tests {
 
         let (recursive_proof, parent_hashes) = prove_recursive(&trace, journal, &[], &[sub_proof]);
 
+        let verify_result = verify(&recursive_proof);
         assert!(
-            verify(&recursive_proof).is_ok(),
-            "recursive proof should verify"
+            verify_result.is_ok(),
+            "recursive proof should verify: {:?}",
+            verify_result.err()
         );
         assert_eq!(parent_hashes.len(), 1);
     }

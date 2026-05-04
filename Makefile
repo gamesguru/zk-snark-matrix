@@ -33,7 +33,7 @@ lint: ##H Run clippy across workspace
 
 .PHONY: test
 test: ##H Run unit tests and benchmarks
-	cargo test --workspace --all-targets --all-features
+	cargo test --workspace --all-targets --all-features -- --nocapture
 
 .PHONY: clean
 clean: ##H Remove build artifacts

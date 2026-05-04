@@ -102,73 +102,109 @@ Three constraint families, each evaluating to zero on a valid trace:
 
 ---
 
-## Phase 3: Binius Migration
+## Phase 3: Binary STARK Prover (hand-rolled, no external dependency)
 
-**Goal:** Replace Plonky3/BabyBear with Binius binary tower fields.
+**Goal:** Implement the Prover-Verifier Protocol from paper §6 as a
+self-contained binary STARK over the existing GF(2) trace.
 
-### 3.1 Dependency swap
+**Decision:** We are **not** using Binius. The architecture is simple enough
+(3 gate types, Expander LTC commitment, no FFTs) that a hand-rolled prover
+is smaller, faster to ship, and avoids coupling to a pre-1.0 external API.
 
-```toml
-# Remove from Cargo.toml:
-# p3-baby-bear, p3-air, p3-field, p3-matrix
+### 3.1 Expander Matrix
 
-# Add:
-binius_field = "latest"
-binius_core = "latest"
-binius_circuits = "latest"  # if using their constraint framework
+```rust
+// ruma-zk-prover/src/expander.rs
+
+/// A sparse, constant-degree Expander matrix G for LTC stretch.
+/// G ∈ F₂^{n × m} with m = ρ·n (stretch factor ρ ≥ 2).
+/// Each column has exactly d_G = 8 nonzero entries (XOR neighbors).
+pub struct ExpanderMatrix {
+    pub n: usize,        // original columns
+    pub m: usize,        // stretched columns (ρ·n)
+    pub degree: usize,   // d_G = 8
+    /// neighbors[col] = [row indices of nonzero entries]
+    pub neighbors: Vec<Vec<usize>>,
+}
+
+impl ExpanderMatrix {
+    /// Deterministic construction from a seed (public parameter).
+    pub fn from_seed(n: usize, stretch: usize, seed: [u8; 32]) -> Self { ... }
+
+    /// Stretch the trace: T_ext = T · G (all XOR, O(d_G · |T|))
+    pub fn stretch(&self, trace: &[Vec<u8>]) -> Vec<Vec<u8>> { ... }
+}
 ```
 
-### 3.2 Field migration
+### 3.2 Fiat-Shamir Transcript
 
-| Component       | BabyBear (current)        | F₂ (target)                                 |
-| --------------- | ------------------------- | ------------------------------------------- |
-| Trace cells     | `BabyBear` (32-bit prime) | `BinaryField1b` or packed `BinaryField128b` |
-| Addition        | Modular add               | XOR                                         |
-| Multiplication  | Modular mul               | AND                                         |
-| Extension field | `BabyBear4`               | `BinaryField128b` (for Fiat-Shamir)         |
-| Commitment      | FRI over BabyBear         | Binius binary PCS (FRI-Binius)              |
+```rust
+// ruma-zk-prover/src/transcript.rs
 
-### 3.3 AIR → Binius constraints
+/// Keccak-256 sponge transcript for Fiat-Shamir compilation.
+/// Initialized with the public journal J = (da_root, state_root, h_auth, n_events).
+pub struct Transcript {
+    state: Keccak,
+}
 
-Binius uses a different constraint model than Plonky3's `Air` trait. Instead of
-`AirBuilder`, Binius uses `ConstraintComposition` over multilinear polynomials.
-The three constraint gates (switch validity, routing, logic) must be re-expressed
-as Binius constraint compositions.
+impl Transcript {
+    pub fn new(journal: &PublicJournal) -> Self { ... }
+    pub fn absorb(&mut self, data: &[u8]) { ... }
+    pub fn squeeze_indices(&mut self, count: usize, modulus: usize) -> Vec<usize> { ... }
+}
+```
 
-### 3.4 Risk: Binius maturity
+### 3.3 Proof Generation
 
-Binius is under active development with breaking API changes. The alternative
-is to implement our own minimal binary STARK:
+The prover pipeline (called after `ExecutionTrace::build()`):
 
-- Merkle commit (Keccak-256) over trace columns
-- Sparse Expander matrix multiply (LTC stretch) — just XORs
-- Sum-check protocol over binary multilinear extensions
-- Fiat-Shamir via `F_{2^128}` with CLMUL
+1. Stretch trace via Expander: `T_ext = T · G`
+2. Merkle-commit the stretched columns → root `r`
+3. Absorb `r` into transcript, squeeze k=843 column indices
+4. For each challenged column: collect column data + Merkle path + pre-image neighbors
+5. Serialize as `RawProof`
 
-This is feasible because our architecture is far simpler than a general zkVM.
+### 3.4 Verification
+
+The verifier checks (per opened column):
+
+1. Merkle path authenticity against root `r`
+2. Stretch consistency: `T_ext[·, c_i] == XOR of T[·, j] for j ∈ N_G(c_i)`
+3. Constraint satisfaction: `C_switch = 0`, `C_route = 0`, `C_logic = 0`
+
+### 3.5 Proof Size Estimate
+
+| Parameter             | Value       |
+| --------------------- | ----------- |
+| k (queries)           | 843         |
+| d_G (Expander degree) | 8           |
+| W (network width)     | 2^16        |
+| Columns per query     | d_G + 1 = 9 |
+| Merkle path depth     | ~17 hashes  |
+| **Total proof size**  | **~150 KB** |
 
 ---
 
 ## Execution Order
 
 ```
-Phase 1 (Waksman)  ─── no crypto dependency, pure algorithms
+Phase 1 (Waksman)  ─── no crypto dependency, pure algorithms  ✅ DONE
      │
      ▼
-Phase 2 (Trace)    ─── builds on Waksman, still field-agnostic
+Phase 2 (Trace)    ─── builds on Waksman, field-agnostic       ✅ DONE
      │
      ▼
-Phase 3 (Binius)   ─── swap the field backend under the trace
+Phase 3 (Prover)   ─── hand-rolled binary STARK over the trace
 ```
 
-Phase 1 can start immediately. Phases 2-3 depend on stable Binius APIs.
+Phases 1-2 are complete. Phase 3 has no external dependency blockers.
 
-## Open Questions
+## Resolved Questions
 
-1. **Binius vs roll-our-own?** Binius is the only binary STARK lib but is
-   pre-1.0. Our architecture is simple enough to hand-roll the binary prover
-   if needed.
-2. **Packed representation?** Binius supports 128-bit packed binary fields
-   for SIMD. Do we pack trace cells into `BinaryField128b` for throughput?
-3. **LTC commitment:** Does Binius's native PCS (FRI-Binius) replace our
-   Expander LTC, or do we layer our Expander on top of Binius field ops?
+1. **Binius vs roll-our-own?** → Roll our own. The circuit has 3 gate types,
+   the commitment is sparse XOR matrix multiply + Merkle, and Fiat-Shamir is
+   a Keccak sponge. Total new code: ~500-800 lines of Rust.
+2. **Packed representation?** → Use `u64` or `u128` bitwise packing for SIMD
+   throughput on the Expander stretch. No external packed-field type needed.
+3. **LTC commitment:** → Our own Expander LTC, not FRI-Binius. The paper's §6
+   formalizes this protocol completely.

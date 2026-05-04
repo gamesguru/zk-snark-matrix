@@ -8,6 +8,7 @@
 //! 4. Column opening (column data + Merkle authentication paths)
 //! 5. Verification (Merkle + stretch consistency + constraint checks)
 
+use crate::auth::AuthWitness;
 use crate::expander::{ExpanderMatrix, DEFAULT_DEGREE, DEFAULT_SEED, DEFAULT_STRETCH};
 use crate::merkle::keccak256;
 use crate::trace::ExecutionTrace;
@@ -59,6 +60,10 @@ pub struct StarkProof {
     pub expander_degree: usize,
     /// Number of original columns (for verifier reconstruction).
     pub original_columns: usize,
+    /// Number of auth constraint columns appended after routing columns.
+    /// Zero if auth was not included in this proof.
+    #[serde(default)]
+    pub auth_column_count: usize,
 }
 
 /// Serialize the execution trace into column-major byte vectors.
@@ -195,13 +200,33 @@ fn verify_merkle_path(leaf_data: &[u8], index: usize, path: &[[u8; 32]], root: &
 /// This implements Phases 2-4 of the protocol (Phase 1 = trace build,
 /// Phase 5 = verification).
 pub fn prove(trace: &ExecutionTrace, journal: PublicJournal) -> StarkProof {
+    prove_with_auth(trace, journal, &[])
+}
+
+/// Generate a STARK proof with optional auth constraint witnesses.
+///
+/// Auth witnesses are serialized into additional trace columns that get
+/// committed alongside the routing columns. The verifier checks both
+/// routing and auth constraints in a single pass.
+pub fn prove_with_auth(
+    trace: &ExecutionTrace,
+    journal: PublicJournal,
+    auth_witnesses: &[AuthWitness],
+) -> StarkProof {
     // Phase 2: Expander stretch + Merkle commitment
-    let original_columns = trace_to_columns(trace);
+    let mut original_columns = trace_to_columns(trace);
+
+    // Append auth witness columns (one column per event)
+    let auth_column_count = auth_witnesses.len();
+    for witness in auth_witnesses {
+        original_columns.push(witness.to_column_bytes());
+    }
+
     let n = original_columns.len();
     let expander = ExpanderMatrix::from_seed(n, DEFAULT_STRETCH, DEFAULT_DEGREE, DEFAULT_SEED);
     eprintln!(
-        "  [stark] expander: n={}, m={}, degree={}",
-        expander.n, expander.m, expander.degree
+        "  [stark] expander: n={}, m={}, degree={}, auth_columns={}",
+        expander.n, expander.m, expander.degree, auth_column_count
     );
     let stretched_columns = expander.stretch(&original_columns);
 
@@ -248,6 +273,7 @@ pub fn prove(trace: &ExecutionTrace, journal: PublicJournal) -> StarkProof {
         preimage_openings,
         expander_degree: expander.degree,
         original_columns: n,
+        auth_column_count,
     }
 }
 

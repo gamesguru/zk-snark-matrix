@@ -64,6 +64,52 @@ pub struct AuthWitness {
     pub authorized: GF2,
 }
 
+/// Number of bytes per auth witness column.
+/// 64 (sender_pl) + 64 (required_pl) + 65 (borrow chain) + 2 (membership) + 3 (flags) = 198.
+pub const AUTH_COLUMN_BYTES: usize = PL_WIDTH + PL_WIDTH + (PL_WIDTH + 1) + MEMBERSHIP_WIDTH + 3;
+
+impl AuthWitness {
+    /// Serialize the auth witness into a flat byte vector for trace embedding.
+    ///
+    /// Layout (198 bytes):
+    ///   [0..64)    sender_pl bits
+    ///   [64..128)  required_pl bits
+    ///   [128..193) borrow chain (PL_WIDTH + 1 entries)
+    ///   [193..195) membership bits
+    ///   [195]      pl_sufficient
+    ///   [196]      is_joined
+    ///   [197]      authorized
+    pub fn to_column_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(AUTH_COLUMN_BYTES);
+
+        // Power level bits
+        for &bit in &self.sender_pl {
+            bytes.push(bit.val());
+        }
+        for &bit in &self.required_pl {
+            bytes.push(bit.val());
+        }
+
+        // Borrow chain (PL_WIDTH + 1 entries)
+        for &borrow in &self.pl_cmp.borrows {
+            bytes.push(borrow.val());
+        }
+
+        // Membership
+        for &bit in &self.membership {
+            bytes.push(bit.val());
+        }
+
+        // Derived flags
+        bytes.push(self.pl_sufficient.val());
+        bytes.push(self.is_joined.val());
+        bytes.push(self.authorized.val());
+
+        debug_assert_eq!(bytes.len(), AUTH_COLUMN_BYTES);
+        bytes
+    }
+}
+
 /// Compute the authorization witness for a single event.
 ///
 /// Arguments:

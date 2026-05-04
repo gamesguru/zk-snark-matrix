@@ -370,3 +370,90 @@ fn end_to_end_proof_bytes_roundtrip() {
     assert_eq!(decoded.journal.n_events, proof.journal.n_events);
     assert!(verify(&decoded).is_ok());
 }
+
+#[test]
+fn end_to_end_recursive_proof() {
+    use ruma_zk_prover::stark::{prove_recursive, PublicJournal};
+
+    // Create two independent sub-proofs (simulating MapReduce shards)
+    let make_sub_proof = |n: usize, seed: u8| {
+        let perm: Vec<usize> = (0..n).rev().collect();
+        let network = BenesNetwork::from_permutation(&perm);
+        let inputs: Vec<GF2> = (0..n).map(|i| GF2::new((i as u8 + seed) & 1)).collect();
+        let trace = ExecutionTrace::build(&inputs, &network);
+
+        let journal = PublicJournal {
+            da_root: [seed; 32],
+            state_root: [seed + 1; 32],
+            h_auth: [seed + 2; 32],
+            n_events: n as u64,
+        };
+
+        prove(&trace, journal)
+    };
+
+    let sub_proof_1 = make_sub_proof(8, 0xAA);
+    let sub_proof_2 = make_sub_proof(8, 0xBB);
+
+    // Verify sub-proofs individually
+    assert!(verify(&sub_proof_1).is_ok(), "sub-proof 1 should verify");
+    assert!(verify(&sub_proof_2).is_ok(), "sub-proof 2 should verify");
+
+    // Create the parent trace (aggregator's own routing)
+    let parent_perm: Vec<usize> = (0..8).rev().collect();
+    let parent_network = BenesNetwork::from_permutation(&parent_perm);
+    let parent_inputs: Vec<GF2> = (0..8).map(|i| GF2::new(i as u8 & 1)).collect();
+    let parent_trace = ExecutionTrace::build(&parent_inputs, &parent_network);
+
+    let parent_journal = PublicJournal {
+        da_root: [0xCC; 32],
+        state_root: [0xDD; 32],
+        h_auth: [0xEE; 32],
+        n_events: 16, // 8 + 8 events aggregated
+    };
+
+    // Generate recursive proof
+    let (recursive_proof, parent_hashes) = prove_recursive(
+        &parent_trace,
+        parent_journal,
+        &[], // no auth witnesses for this test
+        &[sub_proof_1.clone(), sub_proof_2.clone()],
+    );
+
+    // Verify the recursive proof passes standard verification
+    assert!(
+        verify(&recursive_proof).is_ok(),
+        "recursive proof should verify"
+    );
+
+    // Verify parent_hashes were correctly derived
+    assert_eq!(parent_hashes.len(), 2, "should have 2 parent proof hashes");
+    assert_ne!(
+        parent_hashes[0], parent_hashes[1],
+        "different sub-proofs should produce different hashes"
+    );
+
+    // Verify the recursive proof has more columns than a non-recursive one
+    let non_recursive = prove(
+        &parent_trace,
+        PublicJournal {
+            da_root: [0xCC; 32],
+            state_root: [0xDD; 32],
+            h_auth: [0xEE; 32],
+            n_events: 16,
+        },
+    );
+    assert!(
+        recursive_proof.original_columns > non_recursive.original_columns,
+        "recursive proof should have more columns ({} vs {})",
+        recursive_proof.original_columns,
+        non_recursive.original_columns
+    );
+
+    eprintln!(
+        "  [e2e] recursive: {} columns (vs {} non-recursive), {} parent_hashes",
+        recursive_proof.original_columns,
+        non_recursive.original_columns,
+        parent_hashes.len()
+    );
+}

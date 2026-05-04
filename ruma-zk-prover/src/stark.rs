@@ -394,6 +394,128 @@ pub fn estimate_proof_size(width: usize, depth: usize) -> usize {
     32 + 32 * 4 + 8 + SOUNDNESS_QUERIES * per_query
 }
 
+/// Generate a recursive STARK proof that includes verification of sub-proofs.
+///
+/// The resulting proof attests:
+/// 1. The routing trace is valid (same as `prove()`)
+/// 2. Auth constraints are satisfied (same as `prove_with_auth()`)
+/// 3. Each sub-proof was correctly verified (new: recursive verification)
+///
+/// The sub-proof verification witnesses are appended as additional columns
+/// in the trace, committed under the same Merkle root.
+///
+/// `parent_proofs` in the transport layer will contain the hash of each
+/// sub-proof's public journal.
+pub fn prove_recursive(
+    trace: &ExecutionTrace,
+    journal: PublicJournal,
+    auth_witnesses: &[crate::auth::AuthWitness],
+    sub_proofs: &[StarkProof],
+) -> (StarkProof, Vec<[u8; 32]>) {
+    use crate::recursive::{recursive_verify_witness, recursive_witness_to_columns};
+
+    // Generate recursive verifier witnesses for each sub-proof
+    let mut recursive_columns: Vec<Vec<u8>> = Vec::new();
+    let mut parent_proof_hashes: Vec<[u8; 32]> = Vec::new();
+
+    for sub_proof in sub_proofs {
+        let witness = recursive_verify_witness(sub_proof);
+        assert_eq!(
+            witness.is_valid,
+            ruma_zk_topological_air::field::GF2::ONE,
+            "sub-proof verification failed — cannot produce recursive proof for invalid sub-proof"
+        );
+
+        parent_proof_hashes.push(witness.sub_proof_hash);
+
+        // Convert witness to columns and append
+        let columns = recursive_witness_to_columns(&witness);
+        recursive_columns.extend(columns);
+    }
+
+    // Build the base trace columns (routing + auth)
+    let mut original_columns = trace_to_columns(trace);
+    let n_routing = original_columns.len();
+
+    // Append auth columns
+    for aw in auth_witnesses {
+        let col_bytes = aw.to_column_bytes();
+        for byte in col_bytes {
+            original_columns.push(vec![byte]);
+        }
+    }
+    let auth_column_count = auth_witnesses.len();
+
+    // Append recursive verifier columns
+    // Pad each recursive column to match the trace height (1 row)
+    let trace_height = if original_columns.is_empty() {
+        1
+    } else {
+        original_columns[0].len()
+    };
+
+    for mut col in recursive_columns {
+        col.resize(trace_height, 0);
+        original_columns.push(col);
+    }
+
+    let n = original_columns.len();
+    eprintln!(
+        "  [stark] recursive expander: n={} (routing={}, auth={}, recursive={}), sub_proofs={}",
+        n,
+        n_routing,
+        auth_column_count * crate::auth::AUTH_COLUMN_BYTES,
+        n - n_routing - auth_column_count * crate::auth::AUTH_COLUMN_BYTES,
+        sub_proofs.len()
+    );
+
+    // Standard STARK pipeline from here
+    let expander = ExpanderMatrix::from_seed(n, DEFAULT_STRETCH, DEFAULT_DEGREE, DEFAULT_SEED);
+    let stretched_columns = expander.stretch(&original_columns);
+    let (commitment_root, stretched_leaf_hashes) = commit_columns(&stretched_columns);
+    let (_orig_root, orig_leaf_hashes) = commit_columns(&original_columns);
+
+    let mut transcript = Transcript::new(
+        &journal.da_root,
+        &journal.state_root,
+        &journal.h_auth,
+        journal.n_events,
+    );
+    transcript.absorb(&commitment_root);
+    let challenge_indices = transcript.squeeze_indices(SOUNDNESS_QUERIES, expander.m);
+
+    let mut stretched_openings = Vec::with_capacity(SOUNDNESS_QUERIES);
+    let mut preimage_openings = Vec::with_capacity(SOUNDNESS_QUERIES * DEFAULT_DEGREE);
+
+    for &col_idx in &challenge_indices {
+        stretched_openings.push(ColumnOpening {
+            column_index: col_idx,
+            data: stretched_columns[col_idx].clone(),
+            merkle_path: merkle_path(&stretched_leaf_hashes, col_idx),
+        });
+
+        for &neighbor_idx in &expander.neighbors[col_idx] {
+            preimage_openings.push(ColumnOpening {
+                column_index: neighbor_idx,
+                data: original_columns[neighbor_idx].clone(),
+                merkle_path: merkle_path(&orig_leaf_hashes, neighbor_idx),
+            });
+        }
+    }
+
+    let proof = StarkProof {
+        journal,
+        commitment_root,
+        stretched_openings,
+        preimage_openings,
+        expander_degree: expander.degree,
+        original_columns: n,
+        auth_column_count,
+    };
+
+    (proof, parent_proof_hashes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -479,5 +601,118 @@ mod tests {
         // Should be in the ~100KB range for small traces
         assert!(size > 0);
         println!("Estimated proof size for W=16, D=7: {} bytes", size);
+    }
+
+    #[test]
+    fn test_prove_recursive_basic() {
+        let sub_proof = make_test_proof();
+        assert!(verify(&sub_proof).is_ok());
+
+        let perm: Vec<usize> = (0..4).rev().collect();
+        let net = BenesNetwork::from_permutation(&perm);
+        let inputs: Vec<GF2> = vec![GF2::ZERO, GF2::ONE, GF2::ONE, GF2::ZERO];
+        let trace = ExecutionTrace::build(&inputs, &net);
+
+        let journal = PublicJournal {
+            da_root: [0x11; 32],
+            state_root: [0x22; 32],
+            h_auth: [0x33; 32],
+            n_events: 4,
+        };
+
+        let (recursive_proof, parent_hashes) = prove_recursive(&trace, journal, &[], &[sub_proof]);
+
+        assert!(
+            verify(&recursive_proof).is_ok(),
+            "recursive proof should verify"
+        );
+        assert_eq!(parent_hashes.len(), 1);
+    }
+
+    #[test]
+    fn test_prove_recursive_more_columns() {
+        let sub_proof = make_test_proof();
+
+        let perm: Vec<usize> = (0..4).rev().collect();
+        let net = BenesNetwork::from_permutation(&perm);
+        let inputs: Vec<GF2> = vec![GF2::ZERO, GF2::ONE, GF2::ONE, GF2::ZERO];
+        let trace = ExecutionTrace::build(&inputs, &net);
+
+        let journal = PublicJournal {
+            da_root: [0x11; 32],
+            state_root: [0x22; 32],
+            h_auth: [0x33; 32],
+            n_events: 4,
+        };
+
+        let base_proof = prove(&trace, journal.clone());
+        let (recursive_proof, _) = prove_recursive(&trace, journal, &[], &[sub_proof]);
+
+        assert!(
+            recursive_proof.original_columns > base_proof.original_columns,
+            "recursive proof columns ({}) must exceed base ({})",
+            recursive_proof.original_columns,
+            base_proof.original_columns
+        );
+    }
+
+    #[test]
+    fn test_prove_recursive_distinct_hashes() {
+        let proof1 = make_test_proof();
+        // Make a second proof with different journal
+        let perm = vec![3, 2, 1, 0];
+        let net = BenesNetwork::from_permutation(&perm);
+        let inputs: Vec<GF2> = vec![GF2::ONE; 4];
+        let trace = ExecutionTrace::build(&inputs, &net);
+        let proof2 = prove(
+            &trace,
+            PublicJournal {
+                da_root: [0xFF; 32],
+                state_root: [0xEE; 32],
+                h_auth: [0xDD; 32],
+                n_events: 4,
+            },
+        );
+
+        let parent_trace = ExecutionTrace::build(&inputs, &net);
+        let (_, parent_hashes) = prove_recursive(
+            &parent_trace,
+            PublicJournal {
+                da_root: [0x00; 32],
+                state_root: [0x00; 32],
+                h_auth: [0x00; 32],
+                n_events: 8,
+            },
+            &[],
+            &[proof1, proof2],
+        );
+
+        assert_eq!(parent_hashes.len(), 2);
+        assert_ne!(
+            parent_hashes[0], parent_hashes[1],
+            "different sub-proofs must produce different parent hashes"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "sub-proof verification failed")]
+    fn test_prove_recursive_rejects_invalid() {
+        let mut bad_proof = make_test_proof();
+        bad_proof.commitment_root[0] ^= 0xFF; // tamper
+
+        let perm: Vec<usize> = (0..4).rev().collect();
+        let net = BenesNetwork::from_permutation(&perm);
+        let inputs: Vec<GF2> = vec![GF2::ZERO; 4];
+        let trace = ExecutionTrace::build(&inputs, &net);
+
+        let journal = PublicJournal {
+            da_root: [0; 32],
+            state_root: [0; 32],
+            h_auth: [0; 32],
+            n_events: 4,
+        };
+
+        // Should panic because the sub-proof is invalid
+        let _ = prove_recursive(&trace, journal, &[], &[bad_proof]);
     }
 }

@@ -221,10 +221,10 @@ pub fn verify_recursive_constraints(witness: &RecursiveVerifierWitness) -> usize
 
     // Check XOR consistency
     for (query_idx, recomputed) in witness.recomputed_columns.iter().enumerate() {
-        if query_idx < witness.sub_proof.stretched_openings.len() {
-            if *recomputed != witness.sub_proof.stretched_openings[query_idx].data {
-                violations += 1;
-            }
+        if query_idx < witness.sub_proof.stretched_openings.len()
+            && *recomputed != witness.sub_proof.stretched_openings[query_idx].data
+        {
+            violations += 1;
         }
     }
 

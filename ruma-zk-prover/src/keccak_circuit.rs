@@ -120,7 +120,7 @@ impl KeccakState {
                 if z < LANE_BITS {
                     let bit_val = GF2::new((byte >> bit) & 1);
                     let i = idx(x, y, z);
-                    self.bits[i] = self.bits[i] + bit_val;
+                    self.bits[i] += bit_val;
                 }
             }
         }
@@ -192,7 +192,7 @@ fn theta(state: &KeccakState) -> KeccakState {
             let d = c[(x + 4) % 5][z] + c[(x + 1) % 5][(z + LANE_BITS - 1) % LANE_BITS];
             for y in 0..5 {
                 let i = idx(x, y, z);
-                result.bits[i] = result.bits[i] + d;
+                result.bits[i] += d;
             }
         }
     }
@@ -262,7 +262,7 @@ fn iota(state: &KeccakState, round: usize) -> KeccakState {
     for z in 0..LANE_BITS {
         if (rc >> z) & 1 == 1 {
             let i = idx(0, 0, z);
-            result.bits[i] = result.bits[i] + GF2::ONE;
+            result.bits[i] += GF2::ONE;
         }
     }
     result
@@ -309,7 +309,7 @@ pub fn keccak256_circuit(input: &[u8]) -> ([u8; 32], Vec<KeccakWitness>) {
     // Pad: input || 0x01 || 0x00...0x00 || 0x80
     let mut padded = input.to_vec();
     padded.push(0x01);
-    while padded.len() % RATE_BYTES != 0 {
+    while !padded.len().is_multiple_of(RATE_BYTES) {
         padded.push(0x00);
     }
     // Set the last byte's high bit

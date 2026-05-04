@@ -27,6 +27,14 @@ format: ##H Format codebase
 	-isort $(LINT_LOCS_PY)
 	-shfmt -w $(LINT_LOCS_SH)
 
+.PHONY: lint
+lint: ##H Run clippy across workspace
+	cargo clippy --workspace --all-targets --all-features
+
+.PHONY: test
+test: ##H Run unit tests and benchmarks
+	cargo test --workspace --all-targets --all-features
+
 .PHONY: clean
 clean: ##H Remove build artifacts
 	-cd ruma-zk-topological-air && $(LAKE) clean

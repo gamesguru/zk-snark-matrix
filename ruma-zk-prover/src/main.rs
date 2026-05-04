@@ -91,7 +91,9 @@ fn main() {
     match args.command {
         Commands::Fingerprint => {
             println!("ruma-zk-prover v{}", env!("CARGO_PKG_VERSION"));
-            println!("Circuit VK Hash: [pending Binius backend]");
+            let vk_hash =
+                ruma_zk_prover::merkle::keccak256(&ruma_zk_prover::expander::DEFAULT_SEED);
+            println!("Circuit VK Hash: {}", hex::encode(vk_hash));
         }
         Commands::Witness { input, limit } => {
             println!("Graph-Native STARK Witness Generator");
@@ -212,9 +214,6 @@ fn main() {
             let state_root = ruma_zk_prover::merkle::build_merkle_root(&resolved_ids);
 
             // ── h_auth: identity binding over canonically sorted event IDs ──
-            // Event IDs in Matrix are content hashes of the signed PDU,
-            // so hashing the sorted IDs is cryptographically equivalent to
-            // hashing the (event_id || signature) pairs.
             let mut auth_blob = Vec::new();
             for id in &sorted_ids {
                 auth_blob.extend_from_slice(id.as_bytes());
@@ -227,7 +226,55 @@ fn main() {
             println!("    h_auth:     {}", hex::encode(h_auth));
             println!("    n_events:   {}", n_events);
             println!("    n_resolved: {}", resolved.len());
-            println!("\n  [Witness ready -- awaiting Binius prover backend]");
+
+            // ── STARK Proof Generation (Phase 3) ──
+            let journal = ruma_zk_prover::stark::PublicJournal {
+                da_root,
+                state_root,
+                h_auth,
+                n_events: n_events as u64,
+            };
+
+            let start = Instant::now();
+            let proof = ruma_zk_prover::stark::prove(&trace, journal);
+            let prove_time = start.elapsed();
+
+            let proof_size = proof.stretched_openings.len()
+                * proof
+                    .stretched_openings
+                    .first()
+                    .map_or(0, |o| o.data.len() + o.merkle_path.len() * 32)
+                + proof.preimage_openings.len()
+                    * proof
+                        .preimage_openings
+                        .first()
+                        .map_or(0, |o| o.data.len() + o.merkle_path.len() * 32)
+                + 32; // commitment root
+
+            println!("\n  STARK Proof:");
+            println!("    commitment: {}", hex::encode(proof.commitment_root));
+            println!(
+                "    queries:    {} (128-bit soundness)",
+                ruma_zk_prover::stark::SOUNDNESS_QUERIES
+            );
+            println!(
+                "    proof size: {} bytes (~{} KB)",
+                proof_size,
+                proof_size / 1024
+            );
+            println!("    prove time: {:?}", prove_time);
+
+            // ── Verify ──
+            let start = Instant::now();
+            match ruma_zk_prover::stark::verify(&proof) {
+                Ok(()) => {
+                    let verify_time = start.elapsed();
+                    println!("    verify:     {:?} ✓", verify_time);
+                }
+                Err(e) => {
+                    println!("    verify:     FAILED — {}", e);
+                }
+            }
         }
     }
 }

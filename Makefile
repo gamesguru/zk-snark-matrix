@@ -42,6 +42,14 @@ clean: ##H Remove build artifacts
 	rm -rf target/
 
 
+# rustup component add llvm-tools-preview
+# cargo install cargo-llvm-cov
+.PHONY: coverage
+coverage: ##H Generate code coverage report (requires cargo-llvm-cov)
+	cargo llvm-cov --workspace --all-features --html
+	@printf "\n${STYLE_GREEN}Coverage report: target/llvm-cov/html/index.html${STYLE_RESET}\n"
+
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Main targets

@@ -19,7 +19,9 @@
 //! 4. **Binary validation**: All trace bytes are 0 or 1
 
 use crate::expander::DEFAULT_STRETCH;
-use crate::keccak_circuit::{keccak256_circuit, verify_keccak_constraints, KeccakWitness};
+use crate::keccak_circuit::{
+    keccak256_circuit, verify_keccak_constraints, KeccakWitness, STATE_LANES,
+};
 use crate::merkle::keccak256;
 use crate::stark::{StarkProof, SOUNDNESS_QUERIES};
 use ruma_zk_topological_air::field::GF2;
@@ -245,12 +247,12 @@ pub fn verify_recursive_constraints(witness: &RecursiveVerifierWitness) -> usize
 pub fn recursive_witness_to_columns(witness: &RecursiveVerifierWitness) -> Vec<Vec<u8>> {
     let mut columns = Vec::new();
 
-    // Emit all transcript Keccak witnesses as columns
+    // Emit all transcript Keccak witnesses as columns (packed lane bytes)
     for kw in &witness.transcript_witnesses {
         for round in &kw.rounds {
-            let mut col = Vec::with_capacity(1600);
-            for &bit in &round.after_chi.bits {
-                col.push(bit.val());
+            let mut col = Vec::with_capacity(STATE_LANES * 8);
+            for &lane in &round.after_chi.lanes {
+                col.extend_from_slice(&lane.to_le_bytes());
             }
             columns.push(col);
         }
@@ -259,9 +261,9 @@ pub fn recursive_witness_to_columns(witness: &RecursiveVerifierWitness) -> Vec<V
     // Emit all Merkle Keccak witnesses as columns
     for kw in &witness.merkle_witnesses {
         for round in &kw.rounds {
-            let mut col = Vec::with_capacity(1600);
-            for &bit in &round.after_chi.bits {
-                col.push(bit.val());
+            let mut col = Vec::with_capacity(STATE_LANES * 8);
+            for &lane in &round.after_chi.lanes {
+                col.extend_from_slice(&lane.to_le_bytes());
             }
             columns.push(col);
         }

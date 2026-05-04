@@ -198,3 +198,175 @@ fn end_to_end_stark_tamper_detection() {
     }
     // If deserialization fails, that's also fine — the tamper was caught
 }
+
+// ── Auth-integrated STARK pipeline tests ──
+
+use ruma_zk_prover::auth::{compute_auth, MEMBERSHIP_BAN, MEMBERSHIP_JOIN, MEMBERSHIP_NONE};
+use ruma_zk_prover::stark::prove_with_auth;
+
+#[test]
+fn end_to_end_stark_with_auth() {
+    // 8 events with auth witnesses: mix of authorized and unauthorized
+    let n = 8;
+    let perm: Vec<usize> = (0..n).rev().collect();
+    let network = BenesNetwork::from_permutation(&perm);
+    let inputs: Vec<GF2> = (0..n).map(|i| GF2::new(i as u8 & 1)).collect();
+    let trace = ExecutionTrace::build(&inputs, &network);
+
+    // Create auth witnesses: events 0-5 authorized, 6 insufficient PL, 7 banned
+    let auth_witnesses: Vec<_> = (0..n)
+        .map(|i| match i {
+            6 => compute_auth(10, 50, MEMBERSHIP_JOIN), // insufficient PL
+            7 => compute_auth(100, 0, MEMBERSHIP_BAN),  // banned
+            _ => compute_auth(100, 0, MEMBERSHIP_JOIN), // authorized
+        })
+        .collect();
+
+    // Verify auth witnesses are correct
+    assert_eq!(auth_witnesses[0].authorized, GF2::ONE);
+    assert_eq!(auth_witnesses[6].authorized, GF2::ZERO);
+    assert_eq!(auth_witnesses[7].authorized, GF2::ZERO);
+
+    let journal = make_journal(n as u64);
+    let proof = prove_with_auth(&trace, journal, &auth_witnesses);
+
+    // Proof should include auth columns
+    assert_eq!(proof.auth_column_count, n);
+    assert!(
+        verify(&proof).is_ok(),
+        "auth-integrated proof should verify"
+    );
+
+    // Serialize → deserialize → verify
+    let bytes = bincode::serialize(&proof).expect("serialize");
+    eprintln!(
+        "  [e2e] auth proof: {} bytes (~{} KB), {} auth columns",
+        bytes.len(),
+        bytes.len() / 1024,
+        proof.auth_column_count
+    );
+    let deserialized: ruma_zk_prover::stark::StarkProof =
+        bincode::deserialize(&bytes).expect("deserialize");
+    assert!(
+        verify(&deserialized).is_ok(),
+        "deserialized auth proof should verify"
+    );
+    assert_eq!(deserialized.auth_column_count, n);
+}
+
+#[test]
+fn end_to_end_stark_auth_all_membership_states() {
+    let n = 4;
+    let perm: Vec<usize> = (0..n).collect(); // identity
+    let network = BenesNetwork::from_permutation(&perm);
+    let inputs: Vec<GF2> = vec![GF2::ONE; n];
+    let trace = ExecutionTrace::build(&inputs, &network);
+
+    // One event per membership state
+    let auth_witnesses = vec![
+        compute_auth(50, 0, MEMBERSHIP_NONE), // not joined
+        compute_auth(50, 0, MEMBERSHIP_JOIN), // authorized
+        compute_auth(50, 0, 0b10),            // invited
+        compute_auth(50, 0, MEMBERSHIP_BAN),  // banned
+    ];
+
+    assert_eq!(auth_witnesses[0].authorized, GF2::ZERO);
+    assert_eq!(auth_witnesses[1].authorized, GF2::ONE);
+    assert_eq!(auth_witnesses[2].authorized, GF2::ZERO);
+    assert_eq!(auth_witnesses[3].authorized, GF2::ZERO);
+
+    let journal = make_journal(n as u64);
+    let proof = prove_with_auth(&trace, journal, &auth_witnesses);
+    assert!(verify(&proof).is_ok());
+}
+
+#[test]
+fn end_to_end_stark_auth_n64() {
+    // Stress test: 64 events with auth
+    let n = 64;
+    let mut perm: Vec<usize> = (0..n).collect();
+    for i in (1..n).rev() {
+        let j = (i * 37 + 7) % (i + 1);
+        perm.swap(i, j);
+    }
+
+    let network = BenesNetwork::from_permutation(&perm);
+    let inputs: Vec<GF2> = (0..n).map(|i| GF2::new(i as u8 & 1)).collect();
+    let trace = ExecutionTrace::build(&inputs, &network);
+
+    let auth_witnesses: Vec<_> = (0..n)
+        .map(|i| {
+            if i % 10 == 0 {
+                compute_auth(10, 50, MEMBERSHIP_JOIN) // every 10th event fails PL
+            } else {
+                compute_auth(100, 0, MEMBERSHIP_JOIN) // rest authorized
+            }
+        })
+        .collect();
+
+    let journal = make_journal(n as u64);
+    let proof = prove_with_auth(&trace, journal, &auth_witnesses);
+    assert_eq!(proof.auth_column_count, n);
+    assert!(verify(&proof).is_ok(), "n=64 auth proof should verify");
+}
+
+// ── Federation transport tests ──
+
+use ruma_zk_prover::transport::{build_response, decode_proof_bytes, encode_proof_bytes};
+
+#[test]
+fn end_to_end_federation_transport() {
+    // Full pipeline: prove → transport encode → JSON → transport decode → verify
+    let n = 8;
+    let perm: Vec<usize> = (0..n).rev().collect();
+    let network = BenesNetwork::from_permutation(&perm);
+    let inputs: Vec<GF2> = (0..n).map(|i| GF2::new(i as u8 & 1)).collect();
+    let trace = ExecutionTrace::build(&inputs, &network);
+
+    let journal = make_journal(n as u64);
+    let proof = prove(&trace, journal);
+
+    // Build MSC-compliant response
+    let response = build_response(
+        &proof,
+        "12",
+        "sha256:test_vk_hash",
+        "$cutoff:example.com",
+        "example.com",
+    )
+    .expect("build response");
+
+    // Serialize to JSON
+    let json = serde_json::to_string(&response).expect("json serialize");
+    eprintln!("  [e2e] transport JSON: {} bytes", json.len());
+
+    // Deserialize from JSON
+    let parsed: ruma_zk_prover::transport::ZkStateProofResponse =
+        serde_json::from_str(&json).expect("json deserialize");
+    assert_eq!(parsed.room_version, "12");
+    assert_eq!(parsed.checkpoint.public_journal.n_events, n as u64);
+
+    // Decode proof and verify
+    let decoded = decode_proof_bytes(&parsed.checkpoint.zk_proof_bytes).expect("decode proof");
+    assert!(verify(&decoded).is_ok(), "decoded proof should verify");
+}
+
+#[test]
+fn end_to_end_proof_bytes_roundtrip() {
+    let n = 8;
+    let perm: Vec<usize> = (0..n).rev().collect();
+    let network = BenesNetwork::from_permutation(&perm);
+    let inputs: Vec<GF2> = (0..n).map(|i| GF2::new(i as u8 & 1)).collect();
+    let trace = ExecutionTrace::build(&inputs, &network);
+
+    let journal = make_journal(n as u64);
+    let proof = prove(&trace, journal);
+
+    let encoded = encode_proof_bytes(&proof).expect("encode");
+    let decoded = decode_proof_bytes(&encoded).expect("decode");
+
+    // The decoded proof should produce the same commitment root
+    assert_eq!(decoded.commitment_root, proof.commitment_root);
+    assert_eq!(decoded.journal.n_events, proof.journal.n_events);
+    assert!(verify(&decoded).is_ok());
+}

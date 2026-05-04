@@ -2,7 +2,7 @@
 SHELL=/bin/bash
 .DEFAULT_GOAL=_help
 
-LAKE ?= ~/.elan/bin/lake
+LAKE ?= lake
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
